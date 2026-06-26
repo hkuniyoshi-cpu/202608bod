@@ -230,33 +230,81 @@ a { color: inherit; text-decoration: none; }
 /* ══════════════════════════════════════════════════════════
    SCROLL INDICATOR — 右下配置 (重なり解消)
 ══════════════════════════════════════════════════════════ */
+/* ── Scroll Indicator：軌道リング + ゴールド衛星 ── */
 .hero-scroll {
   position: absolute; bottom: 44px; right: 48px;
-  display: flex; flex-direction: column; align-items: center; gap: 10px;
-  color: rgba(255,255,255,.5); font-size: 9px; letter-spacing: .28em;
-  font-weight: 600; z-index: 2;
+  width: 82px; height: 82px;
+  z-index: 2; cursor: pointer;
   opacity: 0;
-  animation: fadeInScroll .8s ease 2.5s forwards;
+  animation: fadeInScroll .9s ease 2.6s forwards;
 }
-@keyframes fadeInScroll { to { opacity: 1; } }
-.hero-scroll-line {
-  width: 1px; height: 64px;
-  background: rgba(255,255,255,.16);
-  position: relative; overflow: hidden;
+@keyframes fadeInScroll { from { opacity:0; transform:scale(.85); } to { opacity:1; transform:scale(1); } }
+
+/* 外側リング — ゆっくり回転 */
+.hs-ring {
+  position: absolute; inset: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,.18);
+  animation: hsRingSpin 9s linear infinite;
+}
+@keyframes hsRingSpin { to { transform: rotate(360deg); } }
+
+/* ゴールド衛星ドット */
+.hs-dot {
+  position: absolute; top: -4px; left: 50%; margin-left: -3.5px;
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--gold);
+  box-shadow: 0 0 10px rgba(201,162,74,.75), 0 0 22px rgba(201,162,74,.28);
+}
+/* コメット尾流 */
+.hs-dot::after {
+  content: '';
+  position: absolute; top: 50%; left: 50%;
+  width: 1.5px; height: 18px;
+  margin-left: -.75px; margin-top: -18px;
+  background: linear-gradient(to top, rgba(201,162,74,.55), transparent);
   border-radius: 1px;
 }
-.hero-scroll-line::after {
-  content: '';
-  position: absolute; left: 0; right: 0; top: -50%; height: 50%;
-  background: linear-gradient(to bottom, transparent, var(--gold-l));
-  animation: scrollDrop 2.2s cubic-bezier(.4,0,.6,1) infinite;
+
+/* 内側リング — 逆回転 */
+.hs-ring-inner {
+  position: absolute; inset: 14px;
+  border-radius: 50%;
+  border: 1px solid rgba(201,162,74,.13);
+  animation: hsRingSpin 6s linear infinite reverse;
 }
-@keyframes scrollDrop {
-  0%   { top: -50%; opacity: 0; }
-  20%  { opacity: 1; }
-  80%  { opacity: 1; }
-  100% { top: 150%; opacity: 0; }
+
+/* 中央コンテンツ（回転しない） */
+.hs-center {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 8px;
 }
+.hs-label {
+  font-size: 7px; letter-spacing: .38em; font-weight: 700;
+  color: rgba(255,255,255,.45); text-transform: uppercase; line-height: 1;
+}
+/* カスケードシェブロン */
+.hs-chevs { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.hs-chev {
+  display: block; width: 8px; height: 8px;
+  border-right: 1.5px solid var(--gold);
+  border-bottom: 1.5px solid var(--gold);
+  transform: rotate(45deg); opacity: 0;
+}
+.hs-chev:nth-child(1) { animation: hsChev 1.9s  0.00s ease-in-out infinite; }
+.hs-chev:nth-child(2) { animation: hsChev 1.9s  0.30s ease-in-out infinite; }
+.hs-chev:nth-child(3) { animation: hsChev 1.9s  0.60s ease-in-out infinite; }
+@keyframes hsChev {
+  0%         { opacity:0; transform:rotate(45deg) translate(-2px,-2px); }
+  25%, 65%   { opacity:1; transform:rotate(45deg) translate(0,0); }
+  100%       { opacity:0; transform:rotate(45deg) translate(3px,3px); }
+}
+
+/* ホバー：リングが加速 */
+.hero-scroll:hover .hs-ring       { animation-duration: 3s; }
+.hero-scroll:hover .hs-ring-inner { animation-duration: 2s; }
+.hero-scroll:hover .hs-label      { color: rgba(255,255,255,.75); }
 
 /* ══════════════════════════════════════════════════════════
    HERO BG ANIMATIONS — ビーム / リップル / スパーク / オーロラ
@@ -1503,9 +1551,19 @@ a { color: inherit; text-decoration: none; }
   </div><!-- /container -->
 
   <!-- Scroll indicator -->
-  <div class="hero-scroll" id="hero-scroll">
-    <span>SCROLL</span>
-    <div class="hero-scroll-line"></div>
+  <div class="hero-scroll" id="hero-scroll" aria-label="スクロール">
+    <div class="hs-ring">
+      <div class="hs-dot"></div>
+    </div>
+    <div class="hs-ring-inner"></div>
+    <div class="hs-center">
+      <span class="hs-label">SCROLL</span>
+      <div class="hs-chevs" aria-hidden="true">
+        <span class="hs-chev"></span>
+        <span class="hs-chev"></span>
+        <span class="hs-chev"></span>
+      </div>
+    </div>
   </div>
 </section>
 
