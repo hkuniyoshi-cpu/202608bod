@@ -752,7 +752,7 @@ a { color: inherit; text-decoration: none; }
 }
 .hero-content {
   position: relative; z-index: 1;
-  padding: 88px 0 80px;
+  padding: 60px 0 60px;
   color: var(--white);
 }
 /* Spacing between h-row blocks */
@@ -1247,7 +1247,18 @@ a { color: inherit; text-decoration: none; }
   .ghost-text { font-size: clamp(60px, 22vw, 120px); }
 
   /* ── HERO：モバイル最適化（インパクト強化） ── */
-  .hero { padding: 110px 0 100px; }
+  .hero {
+    min-height: 100vh;
+    justify-content: center;
+  }
+  .hero-content {
+    padding: 24px 0;
+    text-align: center;
+  }
+  .hero-content .h-row { display: flex; justify-content: center; }
+  .hero-content .h-row > * { max-width: 100%; }
+  .hero-title-jp { text-align: center; }
+  .hero-sub { margin-left: auto; margin-right: auto; }
   .hero-badge {
     font-size: 9px; letter-spacing: .24em;
     padding: 5px 14px; margin-bottom: 22px;
@@ -1284,7 +1295,7 @@ a { color: inherit; text-decoration: none; }
 /* さらに狭い画面（〜380px）向け微調整 */
 @media (max-width: 380px) {
   .hero-title-jp { font-size: 60px; }
-  .hero { padding: 96px 0 88px; }
+  .hero-content { padding: 16px 0; }
 }
 
 /* prefers-reduced-motion: skip all animations */
