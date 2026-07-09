@@ -797,25 +797,27 @@ a { color: inherit; text-decoration: none; }
 }
 .hero-title-jp {
   font-family: "Noto Serif JP", serif;
-  font-size: clamp(44px, 9vw, 108px);
-  font-weight: 700;
-  line-height: 1.08;
+  font-size: clamp(58px, 9vw, 108px);
+  font-weight: 900;
+  line-height: 1.05;
   color: var(--white);
   margin-bottom: 0;
-  letter-spacing: .01em;
-  text-shadow: 0 4px 30px rgba(0,0,0,.35);
+  letter-spacing: .005em;
+  text-shadow: 0 6px 40px rgba(0,0,0,.5), 0 2px 8px rgba(0,0,0,.4);
 }
 .hero-title-jp .kanji-gold {
-  background: linear-gradient(180deg, #F4D98A 0%, #C9A24A 50%, #E8C067 100%);
+  background: linear-gradient(180deg, #FFE8A8 0%, #F4D98A 30%, #C9A24A 65%, #E8C067 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
   padding: 0 2px;
+  filter: drop-shadow(0 2px 12px rgba(232,192,103,.32));
 }
 .hero-title-jp .q-mark {
   color: var(--gold-l);
   font-family: "Noto Serif JP", serif;
   margin-left: .04em;
+  filter: drop-shadow(0 2px 12px rgba(232,192,103,.35));
 }
 .hero-sep {
   display: flex; align-items: center; gap: 16px;
@@ -1215,8 +1217,48 @@ a { color: inherit; text-decoration: none; }
   .form-group.full { grid-column: 1; }
   .footer-inner { grid-template-columns: 1fr; gap: 28px; }
   .hero-cta-group { flex-direction: column; }
-  .hero-cta-group .btn { width: 100%; justify-content: center; }
+  .hero-cta-group .btn { width: 100%; justify-content: center; font-size: 17px !important; padding: 20px !important; }
   .ghost-text { font-size: clamp(60px, 22vw, 120px); }
+
+  /* ── HERO：モバイル最適化（インパクト強化） ── */
+  .hero { padding: 110px 0 100px; }
+  .hero-badge {
+    font-size: 9px; letter-spacing: .24em;
+    padding: 5px 14px; margin-bottom: 22px;
+  }
+  .hero-date-pill {
+    font-size: 13px; letter-spacing: .06em;
+    padding: 7px 18px; margin-bottom: 22px;
+  }
+  .hero-eyebrow-en {
+    font-size: 12px; letter-spacing: .28em;
+    margin-bottom: 18px;
+  }
+  .hero-eyebrow-en::before,
+  .hero-eyebrow-en::after {
+    width: 24px;
+  }
+  .hero-title-jp {
+    font-size: 68px;
+    line-height: 1.04;
+    letter-spacing: -.01em;
+    font-weight: 900;
+    margin-bottom: 6px;
+  }
+  .hero-sep { margin: 20px 0 26px; }
+  .hero-sep .line { max-width: 32px; }
+  .hero-title-ja {
+    font-size: 14px; letter-spacing: .16em;
+  }
+  .hero-sub {
+    font-size: 14px; line-height: 1.85; margin-bottom: 28px;
+  }
+  .hero-scroll { display: none; }
+}
+/* さらに狭い画面（〜380px）向け微調整 */
+@media (max-width: 380px) {
+  .hero-title-jp { font-size: 60px; }
+  .hero { padding: 96px 0 88px; }
 }
 
 /* prefers-reduced-motion: skip all animations */
