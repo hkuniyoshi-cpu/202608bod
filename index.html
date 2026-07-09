@@ -779,6 +779,44 @@ a { color: inherit; text-decoration: none; }
   line-height: .92; letter-spacing: .02em;
   color: var(--white); margin-bottom: 0;
 }
+/* ── HERO 大見出し（日本語問い） ── */
+.hero-eyebrow-en {
+  font-family: "Bebas Neue", sans-serif;
+  font-size: clamp(14px, 1.8vw, 18px);
+  letter-spacing: .32em;
+  color: var(--gold-l);
+  font-weight: 400;
+  display: inline-flex; align-items: center; gap: 14px;
+  margin-bottom: 12px;
+}
+.hero-eyebrow-en::before,
+.hero-eyebrow-en::after {
+  content: '';
+  width: 38px; height: 1px;
+  background: rgba(201,162,74,.55);
+}
+.hero-title-jp {
+  font-family: "Noto Serif JP", serif;
+  font-size: clamp(44px, 9vw, 108px);
+  font-weight: 700;
+  line-height: 1.08;
+  color: var(--white);
+  margin-bottom: 0;
+  letter-spacing: .01em;
+  text-shadow: 0 4px 30px rgba(0,0,0,.35);
+}
+.hero-title-jp .kanji-gold {
+  background: linear-gradient(180deg, #F4D98A 0%, #C9A24A 50%, #E8C067 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  padding: 0 2px;
+}
+.hero-title-jp .q-mark {
+  color: var(--gold-l);
+  font-family: "Noto Serif JP", serif;
+  margin-left: .04em;
+}
 .hero-sep {
   display: flex; align-items: center; gap: 16px;
   margin: 14px 0 20px;
@@ -1512,21 +1550,22 @@ a { color: inherit; text-decoration: none; }
       </div>
 
       <div class="h-row">
-        <h1 class="hero-title-en" data-hero="2">BUSINESS<br>OPEN DAY</h1>
+        <span class="hero-eyebrow-en" data-hero="2">BUSINESS OPEN DAY 2026</span>
       </div>
 
       <div class="h-row">
-        <div class="hero-sep" data-hero="3">
+        <h1 class="hero-title-jp" data-hero="3">
+          今の<span class="kanji-gold">売上</span>、<br>
+          <span class="kanji-gold">満足</span>ですか<span class="q-mark">？</span>
+        </h1>
+      </div>
+
+      <div class="h-row">
+        <div class="hero-sep" data-hero="4">
           <span class="line"></span>
-          <span class="hero-title-ja">ビジネス オープン デー</span>
+          <span class="hero-title-ja">ビジネスが、連鎖する。</span>
           <span class="line"></span>
         </div>
-      </div>
-
-      <div class="h-row">
-        <p class="hero-tagline" data-hero="4">
-          ビジネスが、<span class="accent">連鎖する。</span>
-        </p>
       </div>
 
       <div class="h-row">
