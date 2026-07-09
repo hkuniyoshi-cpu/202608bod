@@ -799,11 +799,34 @@ a { color: inherit; text-decoration: none; }
   font-family: "Noto Serif JP", serif;
   font-size: clamp(58px, 9vw, 108px);
   font-weight: 900;
-  line-height: 1.05;
+  line-height: 1.06;
   color: var(--white);
   margin-bottom: 0;
-  letter-spacing: .005em;
+  letter-spacing: -.015em;
   text-shadow: 0 6px 40px rgba(0,0,0,.5), 0 2px 8px rgba(0,0,0,.4);
+  word-break: keep-all;
+  overflow-wrap: normal;
+  text-wrap: balance;
+}
+/* 強調文字（大きい・力強い） */
+.hero-title-jp .jp-lg {
+  font-weight: 900;
+  font-size: 1em;
+}
+/* 助詞・語尾（小さい・細い・淡い） */
+.hero-title-jp .jp-sm {
+  font-size: .56em;
+  font-weight: 500;
+  color: rgba(255,255,255,.78);
+  letter-spacing: .04em;
+  vertical-align: .18em;
+  margin: 0 .01em;
+}
+.hero-title-jp .jp-punc {
+  font-size: .5em;
+  color: rgba(255,255,255,.65);
+  vertical-align: .3em;
+  margin: 0 -.05em 0 -.08em;
 }
 .hero-title-jp .kanji-gold {
   background: linear-gradient(180deg, #FFE8A8 0%, #F4D98A 30%, #C9A24A 65%, #E8C067 100%);
@@ -816,7 +839,10 @@ a { color: inherit; text-decoration: none; }
 .hero-title-jp .q-mark {
   color: var(--gold-l);
   font-family: "Noto Serif JP", serif;
-  margin-left: .04em;
+  font-size: .72em;
+  font-weight: 700;
+  margin-left: -.02em;
+  vertical-align: .06em;
   filter: drop-shadow(0 2px 12px rgba(232,192,103,.35));
 }
 .hero-sep {
@@ -1597,8 +1623,8 @@ a { color: inherit; text-decoration: none; }
 
       <div class="h-row">
         <h1 class="hero-title-jp" data-hero="3">
-          今の<span class="kanji-gold">売上</span>、<br>
-          <span class="kanji-gold">満足</span>ですか<span class="q-mark">？</span>
+          <span class="jp-lg">今</span><span class="jp-sm">の</span><span class="jp-lg kanji-gold">売上</span><span class="jp-punc">、</span><br>
+          <span class="jp-lg kanji-gold">満足</span><span class="jp-sm">ですか</span><span class="q-mark">？</span>
         </h1>
       </div>
 
