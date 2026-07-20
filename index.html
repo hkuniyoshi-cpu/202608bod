@@ -2735,8 +2735,36 @@ function onScroll() {
 window.addEventListener('scroll', onScroll, { passive: true });
 
 
-/* ─── 8. FORM SECURITY — ハニーポット + レートリミット ── */
+/* ─── 8. FORM SECURITY — 多層防御 ─────────────────────── */
 let _lastSubmitTime = 0;
+let _formOpenedAt   = 0;                       // 時間トラップ用
+const MIN_FILL_MS   = 3500;                    // 3.5秒未満で送信 → Bot判定
+const RATE_LIMIT_MS = 4000;
+
+/* フォームモーダルが開かれた瞬間のタイムスタンプを保存 */
+document.addEventListener('click', (e) => {
+  const trigger = e.target.closest('[href="#form"], .form-open-btn');
+  if (trigger) _formOpenedAt = Date.now();
+}, true);
+
+/* メールアドレスの追加検証（構文＋捨てメアド簡易ブロック） */
+const DISPOSABLE_EMAIL_DOMAINS = [
+  'mailinator.com','guerrillamail.com','tempmail.com','10minutemail.com',
+  'yopmail.com','trashmail.com','throwawaymail.com','fakeinbox.com',
+  'sharklasers.com','maildrop.cc','dispostable.com','getnada.com',
+];
+function isValidEmail(email) {
+  const re = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+  if (!re.test(email)) return false;
+  const domain = email.split('@')[1].toLowerCase();
+  return !DISPOSABLE_EMAIL_DOMAINS.includes(domain);
+}
+
+/* 電話番号の追加検証 */
+function isValidPhone(phone) {
+  const digits = phone.replace(/[^\d]/g, '');
+  return digits.length >= 10 && digits.length <= 11;
+}
 
 function handleSubmit(e) {
   const form = e.target;
@@ -2745,26 +2773,50 @@ function handleSubmit(e) {
   /* ① GAS URL 未設定チェック */
   if (!form.action || form.action.includes('YOUR_GAS_URL')) {
     e.preventDefault();
-    alert('⚠️ GAS URLが設定されていません。\ngas.gsをデプロイしてYOUR_GAS_URLを置き換えてください。');
+    alert('⚠️ GAS URLが設定されていません。');
     return;
   }
 
-  /* ② ハニーポット — ボットが入力した場合は黙ってブロック */
+  /* ② ハニーポット — Botが入力した場合は静かにブロック */
   const hp = form.elements['_hp'];
   if (hp && hp.value.length > 0) {
     e.preventDefault();
+    console.warn('[security] honeypot triggered');
     return;
   }
 
-  /* ③ レートリミット — 4秒以内の二重送信を防止 */
-  const now = Date.now();
-  if (now - _lastSubmitTime < 4000) {
+  /* ③ 時間トラップ — 3.5秒未満で送信 → Bot判定 */
+  const now  = Date.now();
+  const elapsed = _formOpenedAt ? now - _formOpenedAt : Infinity;
+  if (elapsed < MIN_FILL_MS) {
+    e.preventDefault();
+    console.warn('[security] time-trap triggered:', elapsed, 'ms');
+    // 意図的にエラー表示しない（Botに情報を渡さない）
+    return;
+  }
+
+  /* ④ レートリミット — 4秒以内の二重送信を防止 */
+  if (now - _lastSubmitTime < RATE_LIMIT_MS) {
     e.preventDefault();
     return;
   }
   _lastSubmitTime = now;
 
-  /* ④ 送信処理 */
+  /* ⑤ メール・電話番号のクライアント検証 */
+  const email = form.elements['email'].value.trim();
+  const phone = form.elements['phone'].value.trim();
+  if (!isValidEmail(email)) {
+    e.preventDefault();
+    alert('メールアドレスの形式をご確認ください。');
+    return;
+  }
+  if (!isValidPhone(phone)) {
+    e.preventDefault();
+    alert('電話番号は10〜11桁の半角数字でご入力ください。');
+    return;
+  }
+
+  /* ⑥ 送信処理 */
   btn.disabled    = true;
   btn.textContent = '送信中...';
 

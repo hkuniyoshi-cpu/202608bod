@@ -50,11 +50,75 @@ const HEADERS = [
 ];
 
 // ----------------------------------------------------------------
+// バリデーション & 検証ユーティリティ
+// ----------------------------------------------------------------
+const DISPOSABLE_DOMAINS = [
+  'mailinator.com','guerrillamail.com','tempmail.com','10minutemail.com',
+  'yopmail.com','trashmail.com','throwawaymail.com','fakeinbox.com',
+  'sharklasers.com','maildrop.cc','dispostable.com','getnada.com',
+];
+const REQUIRED_FIELDS = ['name','nameKana','company','companyKana',
+                         'industry','email','phone','afterparty','authority','survey'];
+const MAX_FIELD_LEN = 200;
+const DUPLICATE_WINDOW_MIN = 10;   // 同メール10分以内の再送はブロック
+
+function validate(p) {
+  // 必須チェック
+  for (const f of REQUIRED_FIELDS) {
+    if (!p[f] || String(p[f]).trim() === '') {
+      return `必須項目が未入力です: ${f}`;
+    }
+  }
+  // 文字数チェック（過剰入力によるDoS防止）
+  for (const key of Object.keys(p)) {
+    if (String(p[key]).length > MAX_FIELD_LEN) {
+      return `入力値が長すぎます: ${key}`;
+    }
+  }
+  // メール形式チェック
+  const email = String(p.email).trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+    return 'メールアドレスの形式が不正です';
+  }
+  // 捨てメアドドメインをブロック
+  const domain = email.split('@')[1].toLowerCase();
+  if (DISPOSABLE_DOMAINS.indexOf(domain) !== -1) {
+    return '使い捨てメールアドレスは受け付けていません';
+  }
+  // 電話番号チェック
+  const digits = String(p.phone).replace(/[^\d]/g, '');
+  if (digits.length < 10 || digits.length > 11) {
+    return '電話番号の形式が不正です';
+  }
+  return null; // OK
+}
+
+function isDuplicate(sheet, email) {
+  const rows = sheet.getDataRange().getValues();
+  const threshold = new Date().getTime() - DUPLICATE_WINDOW_MIN * 60 * 1000;
+  for (let i = rows.length - 1; i >= 1 && i >= rows.length - 20; i--) {
+    const rowEmail = rows[i][7];
+    const rowTime  = new Date(rows[i][0]).getTime();
+    if (rowEmail === email && rowTime > threshold) return true;
+  }
+  return false;
+}
+
+// ----------------------------------------------------------------
 // doPost — フォーム送信受け取り
 // ----------------------------------------------------------------
 function doPost(e) {
   try {
     const p = e.parameter;
+
+    // ─── ① サーバー側バリデーション ─────────────────
+    const validationError = validate(p);
+    if (validationError) {
+      console.warn('[validation]', validationError, p);
+      return HtmlService.createHtmlOutput(
+        '<script>window.parent.postMessage("bni_error","*");</script>'
+      );
+    }
 
     // シート取得（なければ作成）
     const ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
@@ -73,6 +137,15 @@ function doPost(e) {
       sheet.setFrozenRows(1);
     }
 
+    // ─── ② 重複送信チェック（同メール10分以内） ─────
+    if (isDuplicate(sheet, String(p.email).trim())) {
+      console.warn('[duplicate] blocked:', p.email);
+      // 表面上は成功として返す（Botに情報を渡さない）
+      return HtmlService.createHtmlOutput(
+        '<script>window.parent.postMessage("bni_success","*");</script>'
+      );
+    }
+
     // 受付日時
     const now = Utilities.formatDate(
       new Date(), 'Asia/Tokyo', 'yyyy/MM/dd HH:mm:ss'
@@ -81,23 +154,21 @@ function doPost(e) {
     // データ行追加
     sheet.appendRow([
       now,
-      p.name        || '',
-      p.nameKana    || '',
-      p.company     || '',
-      p.companyKana || '',
-      p.industry    || '',
-      p.referrer    || '',
-      p.email       || '',
-      p.phone       || '',
-      p.afterparty  || '',
-      p.authority   || '',
-      p.survey      || '',
+      String(p.name).trim(),
+      String(p.nameKana).trim(),
+      String(p.company).trim(),
+      String(p.companyKana).trim(),
+      String(p.industry).trim(),
+      String(p.referrer || '').trim(),
+      String(p.email).trim(),
+      String(p.phone).trim(),
+      String(p.afterparty).trim(),
+      String(p.authority).trim(),
+      String(p.survey).trim(),
     ]);
 
     // 確認メール送信
-    if (p.email) {
-      sendConfirmationEmail(p);
-    }
+    sendConfirmationEmail(p);
 
     // 完了通知をiframeへ返す
     return HtmlService.createHtmlOutput(
