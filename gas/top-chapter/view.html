@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <?!= pt_include_('include') ?>
+</head>
+<body>
+  <h1>🎯 パワーチーム一覧</h1>
+  <div id="nav-container"></div>
+
+  <div class="card">
+    <div class="field">
+      <input type="text" id="search-input" placeholder="🔍 メンバー名・ミッション・専門分野で検索" oninput="renderList()">
+    </div>
+  </div>
+
+  <div id="list-container">
+    <div class="progress"><div class="spinner"></div><div class="progress-step">読み込み中…</div></div>
+  </div>
+
+  <div class="modal-overlay" id="modal">
+    <div class="modal-content">
+      <button class="modal-close" onclick="closeModal()">×</button>
+      <div id="modal-body"></div>
+    </div>
+  </div>
+
+<script>
+  var allItems = [];
+  document.getElementById('nav-container').innerHTML = ptNav();
+
+  async function loadItems() {
+    try {
+      var res = await ptGet('powerteam', {});
+      allItems = res.items || [];
+      renderList();
+    } catch (e) {
+      document.getElementById('list-container').innerHTML =
+        '<div class="error">読み込みに失敗しました: ' + ptEscapeHtml(String(e)) + '</div>';
+    }
+  }
+
+  function renderList() {
+    var q = document.getElementById('search-input').value.trim().toLowerCase();
+    var filtered = allItems.filter(function(it) {
+      if (!q) return true;
+      var hay = [
+        it.submitter_name, it.powerteam_name, it.mission,
+        it.self_specialty, it.target,
+        it.specialty_1, it.specialty_2, it.specialty_3, it.specialty_4,
+        it.specialty_5, it.specialty_6, it.specialty_7,
+        (it.additional_specialties || []).join(' ')
+      ].join(' ').toLowerCase();
+      return hay.indexOf(q) >= 0;
+    });
+
+    if (filtered.length === 0) {
+      document.getElementById('list-container').innerHTML =
+        '<div class="card">まだ提出がないか、該当するメンバーが見つかりません。</div>';
+      return;
+    }
+
+    var groups = {};
+    filtered.forEach(function(it) {
+      var name = (it.powerteam_name || '(未設定)').trim();
+      if (!groups[name]) groups[name] = [];
+      groups[name].push(it);
+    });
+
+    var teamNames = Object.keys(groups).sort(function(a, b) {
+      if (groups[b].length !== groups[a].length) return groups[b].length - groups[a].length;
+      return a.localeCompare(b, 'ja');
+    });
+
+    var html = '';
+    teamNames.forEach(function(team) {
+      var members = groups[team];
+      html += '<div class="team-section">';
+      html += '<div class="team-header">▼ ' + ptEscapeHtml(team) +
+              '（' + members.length + '名）</div>';
+      html += '<div class="cards-grid">';
+      members.forEach(function(m) {
+        html += '<div class="card">' +
+          '<div class="member-name">' + ptEscapeHtml(m.submitter_name) + '</div>' +
+          '<div class="member-sub">🎯 ' + ptEscapeHtml(m.self_specialty || '(専門未設定)') + '</div>' +
+          '<div class="member-sub">👤 ターゲット: ' + ptEscapeHtml(m.target || '未設定') + '</div>' +
+          '<button class="btn" style="margin-top:10px;" ' +
+          'onclick="showDetail(\'' + ptEscapeHtml(m.submission_id) + '\')">📖 詳細を見る</button>' +
+        '</div>';
+      });
+      html += '</div></div>';
+    });
+    document.getElementById('list-container').innerHTML = html;
+  }
+
+  function showDetail(subId) {
+    var m = allItems.find(function(x) { return x.submission_id === subId; });
+    if (!m) return;
+    var html = '<h1 style="margin-top:0;">' + ptEscapeHtml(m.submitter_name) + '</h1>';
+    html += '<div class="member-sub">パワーチーム: ' + ptEscapeHtml(m.powerteam_name || '(未設定)') + '</div>';
+    html += '<h2>🎯 ミッション</h2><div>' + ptEscapeHtml(m.mission).replace(/\n/g, '<br>') + '</div>';
+    html += '<h2>あなたの専門 / ターゲット</h2>';
+    html += '<div><strong>専門:</strong> ' + ptEscapeHtml(m.self_specialty) + '</div>';
+    html += '<div><strong>ターゲット:</strong> ' + ptEscapeHtml(m.target) + '</div>';
+    html += '<h2>🔧 パワーチームに必要な専門分野</h2><ul>';
+    ['specialty_1','specialty_2','specialty_3','specialty_4','specialty_5','specialty_6','specialty_7']
+      .forEach(function(k, i) {
+        if (m[k]) html += '<li>' + (i+1) + ': ' + ptEscapeHtml(m[k]) + '</li>';
+      });
+    html += '</ul>';
+    if (m.additional_specialties && m.additional_specialties.length) {
+      html += '<div><strong>追加:</strong> ' + m.additional_specialties.map(ptEscapeHtml).join(', ') + '</div>';
+    }
+    html += '<h2>💡 なぜこの仕事をしているのか</h2><div>' + ptEscapeHtml(m.emotional_why).replace(/\n/g, '<br>') + '</div>';
+    html += '<h2>😊 得られる喜び</h2><div>' + ptEscapeHtml(m.emotional_joys).replace(/\n/g, '<br>') + '</div>';
+    html += '<h2>🎯 ターゲットの困りごと・ニーズ</h2><div>' + ptEscapeHtml(m.target_needs).replace(/\n/g, '<br>') + '</div>';
+    html += '<h2>👤 私のターゲット</h2><div>' + ptEscapeHtml(m.target_definition).replace(/\n/g, '<br>') + '</div>';
+    html += '<h2>📎 原本画像</h2>';
+    html += '<div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">';
+    html += '<img class="thumb" src="' + ptEscapeHtml(m.p3_image_url) + '" onclick="window.open(this.src)">';
+    html += '<img class="thumb" src="' + ptEscapeHtml(m.p4_image_url) + '" onclick="window.open(this.src)">';
+    html += '</div>';
+    document.getElementById('modal-body').innerHTML = html;
+    document.getElementById('modal').classList.add('open');
+  }
+
+  function closeModal() {
+    document.getElementById('modal').classList.remove('open');
+  }
+  document.getElementById('modal').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+  });
+
+  loadItems();
+</script>
+</body>
+</html>

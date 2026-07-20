@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <?!= pt_include_('include') ?>
+</head>
+<body>
+  <h1>✏️ パワーチーム 編集</h1>
+  <div id="nav-container"></div>
+
+  <div id="step1" class="card">
+    <div class="field">
+      <label>お名前で検索（例: 山田太郎）</label>
+      <input type="text" id="name-input" autocomplete="off">
+    </div>
+    <button class="btn" onclick="doSearch()">検索</button>
+    <div id="search-msg"></div>
+  </div>
+
+  <div id="step2" class="card" style="display:none;">
+    <div class="warn">
+      ⚠️ <strong id="confirm-name"></strong>さんの提出内容を編集します。よろしいですか？
+      <div style="margin-top:6px; font-size:12px; color:#6B7280;" id="confirm-detail"></div>
+    </div>
+    <div style="display:flex; gap:8px;">
+      <button class="btn secondary" onclick="goStep1()">いいえ、戻る</button>
+      <button class="btn purple" onclick="goStep3()">はい、編集する</button>
+    </div>
+  </div>
+
+  <div id="step3" style="display:none;">
+    <div class="card">
+      <h2>✏️ 内容を編集</h2>
+      <div class="field"><label>パワーチーム名</label><input type="text" id="f-powerteam_name"></div>
+      <div class="field"><label>ミッション</label><textarea id="f-mission"></textarea></div>
+      <div class="field"><label>あなたの専門</label><input type="text" id="f-self_specialty"></div>
+      <div class="field"><label>ターゲット</label><input type="text" id="f-target"></div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+        <div class="field"><label>専門分野1</label><input type="text" id="f-specialty_1"></div>
+        <div class="field"><label>専門分野2</label><input type="text" id="f-specialty_2"></div>
+        <div class="field"><label>専門分野3</label><input type="text" id="f-specialty_3"></div>
+        <div class="field"><label>専門分野4</label><input type="text" id="f-specialty_4"></div>
+        <div class="field"><label>専門分野5</label><input type="text" id="f-specialty_5"></div>
+        <div class="field"><label>専門分野6</label><input type="text" id="f-specialty_6"></div>
+        <div class="field"><label>専門分野7</label><input type="text" id="f-specialty_7"></div>
+      </div>
+      <div class="field">
+        <label>追加専門分野（カンマ区切り）</label>
+        <input type="text" id="f-additional_specialties">
+      </div>
+      <h2>ターゲット・マーケット（p.3）</h2>
+      <div class="field"><label>なぜこの仕事をしているのか</label><textarea id="f-emotional_why"></textarea></div>
+      <div class="field"><label>その人からどんな喜びを得られるのか</label><textarea id="f-emotional_joys"></textarea></div>
+      <div class="field"><label>ターゲットの困りごと・ニーズ</label><textarea id="f-target_needs"></textarea></div>
+      <div class="field"><label>私のターゲットは</label><textarea id="f-target_definition"></textarea></div>
+    </div>
+    <div class="card">
+      <h2>📎 原本画像</h2>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+        <img id="orig-1" class="thumb" onclick="window.open(this.src)">
+        <img id="orig-2" class="thumb" onclick="window.open(this.src)">
+      </div>
+    </div>
+    <div style="display:flex; gap:8px;">
+      <button class="btn secondary" onclick="goStep1()">キャンセル</button>
+      <button class="btn purple" onclick="doSave()">✅ 保存する</button>
+    </div>
+  </div>
+
+  <div id="step4" class="card" style="display:none;">
+    <div class="success">✅ 保存しました！</div>
+    <div style="display:flex; gap:8px;">
+      <a class="btn purple" id="to-view">🎯 一覧を見る</a>
+    </div>
+  </div>
+
+<script>
+  var state = { item: null };
+  document.getElementById('nav-container').innerHTML = ptNav();
+  document.getElementById('to-view').href = PT_BASE + '?page=view';
+
+  function show(id) {
+    ['step1','step2','step3','step4'].forEach(function(x) {
+      document.getElementById(x).style.display = x === id ? 'block' : 'none';
+    });
+    window.scrollTo(0, 0);
+  }
+
+  function goStep1() { show('step1'); document.getElementById('search-msg').innerHTML = ''; }
+
+  async function doSearch() {
+    var name = document.getElementById('name-input').value.trim();
+    if (!name) { alert('お名前を入力してください'); return; }
+    document.getElementById('search-msg').innerHTML =
+      '<div style="color:#6B7280; margin-top:8px;">検索中…</div>';
+    var res = await ptGet('powerteam-one', { name: name });
+    if (!res.found) {
+      document.getElementById('search-msg').innerHTML =
+        '<div class="error">「' + ptEscapeHtml(name) + '」さんの提出は見つかりませんでした。</div>';
+      return;
+    }
+    state.item = res.item;
+    document.getElementById('confirm-name').textContent = res.item.submitter_name;
+    document.getElementById('confirm-detail').textContent =
+      'パワーチーム名: ' + (res.item.powerteam_name || '(未設定)') +
+      ' / 提出日時: ' + res.item.submitted_at;
+    show('step2');
+  }
+
+  function goStep3() {
+    var item = state.item;
+    var keys = [
+      'powerteam_name','mission','self_specialty','target',
+      'specialty_1','specialty_2','specialty_3','specialty_4',
+      'specialty_5','specialty_6','specialty_7',
+      'emotional_why','emotional_joys','target_needs','target_definition'
+    ];
+    keys.forEach(function(k) { document.getElementById('f-' + k).value = item[k] || ''; });
+    document.getElementById('f-additional_specialties').value =
+      (item.additional_specialties || []).join(', ');
+    document.getElementById('orig-1').src = item.p3_image_url || '';
+    document.getElementById('orig-2').src = item.p4_image_url || '';
+    show('step3');
+  }
+
+  async function doSave() {
+    var body = {
+      submission_id: state.item.submission_id,
+      submitter_name: state.item.submitter_name,
+      status: 'confirmed'
+    };
+    var keys = [
+      'powerteam_name','mission','self_specialty','target',
+      'specialty_1','specialty_2','specialty_3','specialty_4',
+      'specialty_5','specialty_6','specialty_7',
+      'emotional_why','emotional_joys','target_needs','target_definition'
+    ];
+    keys.forEach(function(k) { body[k] = document.getElementById('f-' + k).value; });
+    var addRaw = document.getElementById('f-additional_specialties').value;
+    body.additional_specialties = addRaw.split(',').map(function(s){ return s.trim(); }).filter(function(s){ return s; });
+
+    try {
+      var res = await ptPost('update', body);
+      if (!res.ok) throw new Error(res.error || '保存失敗');
+      show('step4');
+    } catch (e) {
+      alert('保存に失敗しました: ' + e.message);
+    }
+  }
+</script>
+</body>
+</html>

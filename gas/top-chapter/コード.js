@@ -73,9 +73,29 @@ var TIME_OPTIONS = (function() {
 // API エントリーポイント
 // ==========================================
 function doGet(e) {
-  var action = (e && e.parameter && e.parameter.action) ? e.parameter.action : 'all';
-  var data;
+  var p = (e && e.parameter) || {};
 
+  // HTMLページ返却（Sites iframe 埋め込み用）
+  if (p.page) {
+    return pt_renderPage_(p.page);
+  }
+
+  var action = p.action || 'all';
+
+  // パワーチーム系
+  if (action === 'powerteam') {
+    return _json({ items: getPowerTeamAll_(false) });
+  }
+  if (action === 'powerteam-all') {
+    return _json({ items: getPowerTeamAll_(true) });
+  }
+  if (action === 'powerteam-one') {
+    var one = getPowerTeamOne_(p.name);
+    return _json(one ? { found: true, item: one } : { found: false });
+  }
+
+  // 既存
+  var data;
   if (action === 'all') {
     data = { events: getAllEvents(), members: getMembers() };
   } else if (action === 'events') {
@@ -85,9 +105,32 @@ function doGet(e) {
   } else {
     data = { error: 'Unknown action' };
   }
+  return _json(data);
+}
 
+function doPost(e) {
+  var p = (e && e.parameter) || {};
+  var body;
+  try {
+    body = e.postData && e.postData.contents ? JSON.parse(e.postData.contents) : {};
+  } catch (err) {
+    return _json({ ok: false, error: 'Invalid JSON body' });
+  }
+
+  try {
+    if (p.action === 'submit') return _json(pt_handleSubmit_(body));
+    if (p.action === 'update') return _json(pt_handleUpdate_(body));
+    if (p.action === 'delete') return _json(pt_handleDelete_(body));
+    return _json({ ok: false, error: 'Unknown action' });
+  } catch (err) {
+    Logger.log('doPost error: ' + err.stack);
+    return _json({ ok: false, error: String(err) });
+  }
+}
+
+function _json(obj) {
   return ContentService
-    .createTextOutput(JSON.stringify(data))
+    .createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
 }
 
@@ -535,6 +578,8 @@ function onOpen() {
     .addItem('時間プルダウンを再設定', 'resetTimePulldowns')
     .addItem('業種カテゴリーのプルダウンを再設定', 'resetIndustryPulldown')
     .addItem('写真URLを一括変換（J列）', 'convertAllPhotoUrls')
+    .addSeparator()
+    .addItem('パワーチームシートをセットアップ（初回のみ）', 'setupPowerTeamSheet')
     .addToUi();
 }
 

@@ -1,0 +1,190 @@
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 12px;
+    font-family: -apple-system, "Hiragino Kaku Gothic ProN", "Yu Gothic UI", sans-serif;
+    color: #1F2937;
+    background: #F9FAFB;
+    -webkit-text-size-adjust: 100%;
+  }
+  h1 { color: #1E3040; margin: 8px 0 16px; font-size: 20px; }
+  h2 { color: #1E3040; margin: 24px 0 8px; font-size: 16px; }
+  .nav { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  .btn {
+    display: inline-block; padding: 10px 16px; border: none; border-radius: 6px;
+    background: #0EA5E9; color: #FFF; font-size: 14px; font-weight: 600;
+    text-decoration: none; cursor: pointer; text-align: center;
+  }
+  .btn:hover { background: #0284C7; }
+  .btn.secondary { background: #6B7280; }
+  .btn.danger { background: #DC2626; }
+  .btn.purple { background: #8B5CF6; }
+  .btn:disabled { background: #9CA3AF; cursor: not-allowed; }
+  .card {
+    background: #FFF; border: 1px solid #E5E7EB; border-radius: 8px;
+    padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  }
+  .field { margin-bottom: 12px; }
+  .field label {
+    display: block; font-size: 12px; font-weight: 600;
+    color: #6B7280; margin-bottom: 4px;
+  }
+  .field input, .field textarea, .field select {
+    width: 100%; padding: 8px 10px; border: 1px solid #D1D5DB;
+    border-radius: 6px; font-size: 14px; font-family: inherit;
+  }
+  .field textarea { min-height: 60px; resize: vertical; }
+  .warn {
+    background: #FEF3C7; border-left: 4px solid #F59E0B;
+    padding: 10px 12px; margin: 12px 0; border-radius: 4px; font-size: 13px;
+  }
+  .error {
+    background: #FEE2E2; border-left: 4px solid #DC2626;
+    padding: 10px 12px; margin: 12px 0; border-radius: 4px; font-size: 13px;
+  }
+  .success {
+    background: #D1FAE5; border-left: 4px solid #10B981;
+    padding: 10px 12px; margin: 12px 0; border-radius: 4px; font-size: 13px;
+  }
+  .team-section { margin-top: 24px; }
+  .team-header {
+    background: #8B5CF6; color: #FFF; padding: 8px 12px;
+    border-radius: 6px; font-weight: 700; font-size: 14px;
+  }
+  .cards-grid {
+    display: grid; grid-template-columns: 1fr; gap: 12px; margin-top: 12px;
+  }
+  @media (min-width: 640px) { .cards-grid { grid-template-columns: 1fr 1fr; } }
+  @media (min-width: 960px) { .cards-grid { grid-template-columns: repeat(3, 1fr); } }
+  .member-name { font-size: 16px; font-weight: 700; color: #1E3040; }
+  .member-sub { font-size: 12px; color: #6B7280; margin-top: 4px; }
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+    display: none; align-items: center; justify-content: center;
+    z-index: 1000; padding: 12px;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-content {
+    background: #FFF; border-radius: 8px; max-width: 720px; width: 100%;
+    max-height: 90vh; overflow-y: auto; padding: 20px;
+  }
+  .modal-close {
+    float: right; background: none; border: none;
+    font-size: 24px; cursor: pointer; color: #6B7280;
+  }
+  .thumb {
+    width: 100%; max-width: 400px; border: 1px solid #E5E7EB;
+    border-radius: 4px; cursor: pointer;
+  }
+  .file-buttons { display: flex; gap: 8px; margin-top: 8px; }
+  .file-buttons label {
+    flex: 1; padding: 10px; background: #0EA5E9; color: #FFF;
+    border-radius: 6px; text-align: center; cursor: pointer; font-size: 14px;
+  }
+  .file-buttons input[type="file"] { display: none; }
+  .progress { text-align: center; padding: 30px 12px; color: #6B7280; }
+  .progress-step { margin: 6px 0; font-size: 14px; }
+  .spinner {
+    display: inline-block; width: 24px; height: 24px;
+    border: 3px solid #E5E7EB; border-top-color: #0EA5E9;
+    border-radius: 50%; animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+
+<script>
+  var PT_BASE = window.location.href.split('?')[0];
+
+  function ptGet(action, params) {
+    var qs = 'action=' + encodeURIComponent(action);
+    if (params) {
+      Object.keys(params).forEach(function(k) {
+        qs += '&' + encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
+      });
+    }
+    return fetch(PT_BASE + '?' + qs).then(function(r) { return r.json(); });
+  }
+
+  function ptPost(action, body) {
+    return fetch(PT_BASE + '?action=' + encodeURIComponent(action), {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(body)
+    }).then(function(r) { return r.json(); });
+  }
+
+  function ptGoto(page) { window.location.href = PT_BASE + '?page=' + page; }
+
+  function ptFileToBase64(file) {
+    return new Promise(function(resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function() {
+        var result = reader.result;
+        var comma = result.indexOf(',');
+        resolve(comma >= 0 ? result.substring(comma + 1) : result);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function ptCompressImage(file) {
+    if (/^image\/heic$/i.test(file.type) || /\.heic$/i.test(file.name)) {
+      await ptLoadScript('https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js');
+      file = await window.heic2any({ blob: file, toType: 'image/jpeg', quality: 0.9 });
+    }
+    var img = await ptLoadImage(URL.createObjectURL(file));
+    var maxSide = 2000;
+    var scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+    var w = Math.round(img.width * scale);
+    var h = Math.round(img.height * scale);
+    var canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+    var blob = await new Promise(function(resolve) {
+      canvas.toBlob(resolve, 'image/jpeg', 0.85);
+    });
+    return {
+      base64: await ptFileToBase64(blob),
+      mime: 'image/jpeg',
+      previewUrl: URL.createObjectURL(blob)
+    };
+  }
+
+  function ptLoadImage(src) {
+    return new Promise(function(resolve, reject) {
+      var img = new Image();
+      img.onload = function() { resolve(img); };
+      img.onerror = reject;
+      img.src = src;
+    });
+  }
+
+  function ptLoadScript(src) {
+    return new Promise(function(resolve, reject) {
+      if (document.querySelector('script[data-src="' + src + '"]')) { resolve(); return; }
+      var s = document.createElement('script');
+      s.src = src;
+      s.dataset.src = src;
+      s.onload = resolve;
+      s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
+
+  function ptEscapeHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function ptNav() {
+    return '<div class="nav">' +
+      '<a class="btn purple" href="' + PT_BASE + '?page=view">🎯 一覧</a>' +
+      '<a class="btn" href="' + PT_BASE + '?page=submit">📄 提出する</a>' +
+      '<a class="btn secondary" href="' + PT_BASE + '?page=edit">✏️ 編集する</a>' +
+      '</div>';
+  }
+</script>

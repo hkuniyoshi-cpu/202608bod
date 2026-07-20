@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <?!= pt_include_('include') ?>
+</head>
+<body>
+  <h1>📄 パワーチーム ワークシート 提出</h1>
+  <div id="nav-container"></div>
+
+  <div id="step1" class="card">
+    <div class="field">
+      <label>お名前（例: 山田太郎）</label>
+      <input type="text" id="name-input" autocomplete="off">
+    </div>
+    <button class="btn" onclick="goStep2()">次へ →</button>
+  </div>
+
+  <div id="step2" class="card" style="display:none;">
+    <div class="field">
+      <label>📄 ワークシート画像1（p.3 または p.4）</label>
+      <div class="file-buttons">
+        <label>📷 撮影
+          <input type="file" accept="image/*" capture="environment" onchange="handleFile(1, this)">
+        </label>
+        <label style="background:#6B7280;">🖼 選択
+          <input type="file" accept="image/*,.heic" onchange="handleFile(1, this)">
+        </label>
+      </div>
+      <img id="preview-1" class="thumb" style="display:none; margin-top:8px;">
+    </div>
+    <div class="field">
+      <label>📄 ワークシート画像2</label>
+      <div class="file-buttons">
+        <label>📷 撮影
+          <input type="file" accept="image/*" capture="environment" onchange="handleFile(2, this)">
+        </label>
+        <label style="background:#6B7280;">🖼 選択
+          <input type="file" accept="image/*,.heic" onchange="handleFile(2, this)">
+        </label>
+      </div>
+      <img id="preview-2" class="thumb" style="display:none; margin-top:8px;">
+    </div>
+    <div style="display:flex; gap:8px;">
+      <button class="btn secondary" onclick="goStep1()">← 戻る</button>
+      <button class="btn" id="submit-btn" onclick="doSubmit()" disabled>送信 →</button>
+    </div>
+    <div id="step2-error"></div>
+  </div>
+
+  <div id="step25" class="card progress" style="display:none;">
+    <div class="spinner"></div>
+    <div class="progress-step" id="prog-1">📤 画像を圧縮しています…</div>
+    <div class="progress-step" id="prog-2" style="color:#9CA3AF;">🤖 AIが手書きを読み取っています…</div>
+    <div class="progress-step" id="prog-3" style="color:#9CA3AF;">💾 保存しています…</div>
+  </div>
+
+  <div id="step3" style="display:none;">
+    <div id="warnings-container"></div>
+    <div class="card">
+      <h2>✏️ AI書き起こし結果を確認・修正</h2>
+      <p style="font-size:12px; color:#6B7280;">
+        AIが読み取った内容です。誤字があれば修正してください。
+      </p>
+      <div class="field"><label>パワーチーム名</label><input type="text" id="f-powerteam_name"></div>
+      <div class="field"><label>ミッション</label><textarea id="f-mission"></textarea></div>
+      <div class="field"><label>あなたの専門</label><input type="text" id="f-self_specialty"></div>
+      <div class="field"><label>ターゲット</label><input type="text" id="f-target"></div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+        <div class="field"><label>専門分野1</label><input type="text" id="f-specialty_1"></div>
+        <div class="field"><label>専門分野2</label><input type="text" id="f-specialty_2"></div>
+        <div class="field"><label>専門分野3</label><input type="text" id="f-specialty_3"></div>
+        <div class="field"><label>専門分野4</label><input type="text" id="f-specialty_4"></div>
+        <div class="field"><label>専門分野5</label><input type="text" id="f-specialty_5"></div>
+        <div class="field"><label>専門分野6</label><input type="text" id="f-specialty_6"></div>
+        <div class="field"><label>専門分野7</label><input type="text" id="f-specialty_7"></div>
+      </div>
+      <div class="field">
+        <label>追加専門分野（カンマ区切り）</label>
+        <input type="text" id="f-additional_specialties">
+      </div>
+      <h2>ターゲット・マーケット（p.3）</h2>
+      <div class="field"><label>なぜこの仕事をしているのか</label><textarea id="f-emotional_why"></textarea></div>
+      <div class="field"><label>その人からどんな喜びを得られるのか</label><textarea id="f-emotional_joys"></textarea></div>
+      <div class="field"><label>ターゲットの困りごと・ニーズ</label><textarea id="f-target_needs"></textarea></div>
+      <div class="field"><label>私のターゲットは</label><textarea id="f-target_definition"></textarea></div>
+    </div>
+    <div class="card">
+      <h2>📎 原本画像</h2>
+      <p style="font-size:12px; color:#6B7280;">タップで拡大</p>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+        <img id="orig-1" class="thumb" onclick="window.open(this.src)">
+        <img id="orig-2" class="thumb" onclick="window.open(this.src)">
+      </div>
+    </div>
+    <div style="display:flex; gap:8px;">
+      <button class="btn secondary" onclick="goStep1()">キャンセル</button>
+      <button class="btn purple" onclick="doConfirm()">✅ 保存する</button>
+    </div>
+  </div>
+
+  <div id="step4" class="card" style="display:none;">
+    <div class="success">✅ 保存しました！</div>
+    <p>内容を変更したい場合は「編集する」ページから、お名前で検索してください。</p>
+    <div style="display:flex; gap:8px;">
+      <a class="btn purple" href="#" id="to-view">🎯 パワーチーム一覧を見る</a>
+    </div>
+  </div>
+
+<script>
+  var state = { name: '', imgs: [null, null], submissionId: null, fields: null };
+  document.getElementById('nav-container').innerHTML = ptNav();
+  document.getElementById('to-view').href = PT_BASE + '?page=view';
+
+  function show(id) {
+    ['step1','step2','step25','step3','step4'].forEach(function(x) {
+      document.getElementById(x).style.display = x === id ? 'block' : 'none';
+    });
+    window.scrollTo(0, 0);
+  }
+
+  function goStep1() { show('step1'); }
+
+  function goStep2() {
+    var name = document.getElementById('name-input').value.trim();
+    if (!name) { alert('お名前を入力してください'); return; }
+    state.name = name;
+    show('step2');
+  }
+
+  async function handleFile(slot, input) {
+    if (!input.files || !input.files[0]) return;
+    var file = input.files[0];
+    document.getElementById('step2-error').innerHTML =
+      '<div style="color:#6B7280; font-size:12px; margin-top:8px;">圧縮中… ' + ptEscapeHtml(file.name) + '</div>';
+    try {
+      var compressed = await ptCompressImage(file);
+      state.imgs[slot - 1] = compressed;
+      var preview = document.getElementById('preview-' + slot);
+      preview.src = compressed.previewUrl;
+      preview.style.display = 'block';
+      document.getElementById('step2-error').innerHTML = '';
+    } catch (e) {
+      document.getElementById('step2-error').innerHTML =
+        '<div class="error">画像を読み込めませんでした: ' + ptEscapeHtml(String(e)) + '</div>';
+    }
+    updateSubmitBtn();
+  }
+
+  function updateSubmitBtn() {
+    document.getElementById('submit-btn').disabled = !(state.imgs[0] && state.imgs[1]);
+  }
+
+  async function doSubmit(confirmOverwrite) {
+    show('step25');
+    setTimeout(function() {
+      document.getElementById('prog-1').style.color = '#10B981';
+      document.getElementById('prog-2').style.color = '#1F2937';
+    }, 500);
+    try {
+      var body = {
+        submitter_name: state.name,
+        image1_base64: state.imgs[0].base64, image1_mime: state.imgs[0].mime,
+        image2_base64: state.imgs[1].base64, image2_mime: state.imgs[1].mime,
+        confirm_overwrite: !!confirmOverwrite
+      };
+      var res = await ptPost('submit', body);
+      if (res.needsConfirm) {
+        if (confirm(res.message)) return doSubmit(true);
+        show('step2');
+        return;
+      }
+      if (!res.ok) throw new Error(res.error || '送信失敗');
+      document.getElementById('prog-2').style.color = '#10B981';
+      document.getElementById('prog-3').style.color = '#1F2937';
+      state.submissionId = res.submission_id;
+      state.fields = res.fields;
+
+      Object.keys(res.fields).forEach(function(k) {
+        var el = document.getElementById('f-' + k);
+        if (!el) return;
+        if (k === 'additional_specialties' && Array.isArray(res.fields[k])) {
+          el.value = res.fields[k].join(', ');
+        } else {
+          el.value = res.fields[k] || '';
+        }
+      });
+      document.getElementById('orig-1').src = res.fields.p3_image_url;
+      document.getElementById('orig-2').src = res.fields.p4_image_url;
+
+      var wc = document.getElementById('warnings-container');
+      wc.innerHTML = '';
+      (res.warnings || []).forEach(function(w) {
+        wc.innerHTML += '<div class="warn">⚠️ ' + ptEscapeHtml(w) + '</div>';
+      });
+      show('step3');
+    } catch (e) {
+      alert('送信に失敗しました: ' + e.message);
+      show('step2');
+    }
+  }
+
+  async function doConfirm() {
+    var body = { submission_id: state.submissionId, submitter_name: state.name, status: 'confirmed' };
+    var fieldKeys = [
+      'powerteam_name','mission','self_specialty','target',
+      'specialty_1','specialty_2','specialty_3','specialty_4',
+      'specialty_5','specialty_6','specialty_7',
+      'emotional_why','emotional_joys','target_needs','target_definition'
+    ];
+    fieldKeys.forEach(function(k) { body[k] = document.getElementById('f-' + k).value; });
+    var addRaw = document.getElementById('f-additional_specialties').value;
+    body.additional_specialties = addRaw.split(',').map(function(s){ return s.trim(); }).filter(function(s){ return s; });
+
+    try {
+      var res = await ptPost('update', body);
+      if (!res.ok) throw new Error(res.error || '保存失敗');
+      show('step4');
+    } catch (e) {
+      alert('保存に失敗しました: ' + e.message);
+    }
+  }
+</script>
+</body>
+</html>
