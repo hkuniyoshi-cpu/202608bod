@@ -45,7 +45,10 @@
       <img id="preview-2" class="thumb" style="display:none; margin-top:8px;">
     </div>
     <div class="field">
-      <label>③ 2つの説明文 <span style="color:#6B7280; font-weight:400;">（後半 p.3）</span></label>
+      <label>③ 2つの説明文 <span style="color:#6B7280; font-weight:400;">（後半 p.3・任意）</span></label>
+      <p style="font-size:11px; color:#6B7280; margin:2px 0 4px;">
+        ①または②で見開き撮影して p.3+p.4 を1枚に写した場合はここは空でOK
+      </p>
       <div class="file-buttons">
         <label>📷 撮影
           <input type="file" accept="image/*" capture="environment" onchange="handleFile(3, this)">
@@ -65,9 +68,17 @@
 
   <div id="step25" class="card progress" style="display:none;">
     <div class="spinner"></div>
+    <div style="font-size:28px; font-weight:bold; color:#1E3040; margin:12px 0;" id="elapsed-timer">0:00</div>
     <div class="progress-step" id="prog-1">📤 画像を圧縮しています…</div>
-    <div class="progress-step" id="prog-2" style="color:#9CA3AF;">🤖 AIが手書きを読み取っています…（最大2分）</div>
+    <div class="progress-step" id="prog-2" style="color:#9CA3AF;">🤖 AIが手書きを読み取っています…</div>
     <div class="progress-step" id="prog-3" style="color:#9CA3AF;">💾 保存しています…</div>
+    <div class="progress-step" id="rotate-msg" style="margin-top:16px; font-size:13px; color:#8B5CF6;">
+      通常30秒〜1分程度かかります
+    </div>
+    <div class="warn" style="margin-top:20px; text-align:left;">
+      ⚠️ <strong>この画面を閉じたりリロードしないでください</strong><br>
+      <span style="font-size:12px;">AIが手書き文字を読み取っています。時間がかかりますが、そのままお待ちください。</span>
+    </div>
   </div>
 
   <div id="step3" style="display:none;">
@@ -169,12 +180,50 @@
   }
 
   function updateSubmitBtn() {
-    // 3枚とも必須
-    document.getElementById('submit-btn').disabled = !(state.imgs[0] && state.imgs[1] && state.imgs[2]);
+    // 最低2枚必須、3枚目は任意
+    document.getElementById('submit-btn').disabled = !(state.imgs[0] && state.imgs[1]);
+  }
+
+  // 経過時間タイマー＋ローテメッセージ
+  var progressState = { startedAt: 0, timerId: null, rotateId: null };
+  var ROTATE_MESSAGES = [
+    '通常30秒〜1分程度かかります',
+    'AIが日本語の手書き文字を1文字ずつ読み取っています…',
+    'ミッションや専門分野を抽出しています…',
+    '手書きの読み取りは繊細な処理です。もう少しお待ちください…',
+    'あと少しで完了します…',
+    '書き起こしを整えています…'
+  ];
+  function startProgressTimer() {
+    progressState.startedAt = Date.now();
+    var timerEl = document.getElementById('elapsed-timer');
+    var rotEl = document.getElementById('rotate-msg');
+    var msgIdx = 0;
+    progressState.timerId = setInterval(function() {
+      var sec = Math.floor((Date.now() - progressState.startedAt) / 1000);
+      var m = Math.floor(sec / 60);
+      var s = sec % 60;
+      timerEl.textContent = m + ':' + (s < 10 ? '0' + s : s);
+    }, 500);
+    progressState.rotateId = setInterval(function() {
+      msgIdx = (msgIdx + 1) % ROTATE_MESSAGES.length;
+      rotEl.textContent = ROTATE_MESSAGES[msgIdx];
+    }, 4000);
+  }
+  function stopProgressTimer() {
+    if (progressState.timerId) clearInterval(progressState.timerId);
+    if (progressState.rotateId) clearInterval(progressState.rotateId);
+    progressState.timerId = null;
+    progressState.rotateId = null;
   }
 
   async function doSubmit(confirmOverwrite) {
     show('step25');
+    document.getElementById('elapsed-timer').textContent = '0:00';
+    document.getElementById('prog-1').style.color = '#1F2937';
+    document.getElementById('prog-2').style.color = '#9CA3AF';
+    document.getElementById('prog-3').style.color = '#9CA3AF';
+    startProgressTimer();
     setTimeout(function() {
       document.getElementById('prog-1').style.color = '#10B981';
       document.getElementById('prog-2').style.color = '#1F2937';
@@ -184,11 +233,15 @@
         submitter_name: state.name,
         image1_base64: state.imgs[0].base64, image1_mime: state.imgs[0].mime,
         image2_base64: state.imgs[1].base64, image2_mime: state.imgs[1].mime,
-        image3_base64: state.imgs[2].base64, image3_mime: state.imgs[2].mime,
         confirm_overwrite: !!confirmOverwrite
       };
+      if (state.imgs[2]) {
+        body.image3_base64 = state.imgs[2].base64;
+        body.image3_mime = state.imgs[2].mime;
+      }
       var res = await ptPost('submit', body);
       if (res.needsConfirm) {
+        stopProgressTimer();
         if (confirm(res.message)) return doSubmit(true);
         show('step2');
         return;
@@ -225,8 +278,10 @@
       (res.warnings || []).forEach(function(w) {
         wc.innerHTML += '<div class="warn">⚠️ ' + ptEscapeHtml(w) + '</div>';
       });
+      stopProgressTimer();
       show('step3');
     } catch (e) {
+      stopProgressTimer();
       alert('送信に失敗しました: ' + e.message);
       show('step2');
     }
