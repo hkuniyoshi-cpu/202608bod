@@ -87,15 +87,15 @@ function test_saveImagesToDrive() {
 }
 
 // ==========================================
-// Gemini OCR呼び出しのテスト
+// Claude OCR呼び出しのテスト
 // 画像2枚で3ページ分（見開き含む）を検出できるかテスト
 // 事前:
-//   1. GEMINI_API_KEY がスクリプトプロパティに保存されている
+//   1. ANTHROPIC_API_KEY がスクリプトプロパティに保存されている
 //   2. Drive「BNI-powerteam-images/_test/」に
 //      sample_p3.jpg（p.3+p.4見開き）/ sample_p4.jpg（p.5単独）を配置
 //   3. 画像枚数は2〜3枚可変。3枚目があれば sample_p5.jpg として自動追加
 // ==========================================
-function test_callGeminiOCR() {
+function test_callClaudeOCR() {
   var folder = getPowerTeamFolder_();
   var testFolders = folder.getFoldersByName('_test');
   _pt_assertTruthy(testFolders.hasNext(), '_testフォルダが存在');
@@ -123,7 +123,7 @@ function test_callGeminiOCR() {
     Logger.log('※ sample_p5.jpg なし、2枚で実行（AIが1枚から複数ページ抽出）');
   }
 
-  var result = callGeminiOCR_(images);
+  var result = callClaudeOCR_(images);
   Logger.log('Response: ' + JSON.stringify(result, null, 2));
 
   _pt_assertTruthy(result.p3_page, 'p3_page が返る');
@@ -136,7 +136,7 @@ function test_callGeminiOCR() {
   _pt_assertTruthy(result.p5_page.mission_reason, 'p.5 のミッション理由が空でない');
   _pt_assertTruthy(Array.isArray(result.warnings), 'warnings 配列で返る');
 
-  Logger.log('=== test_callGeminiOCR: ALL PASS ===');
+  Logger.log('=== test_callClaudeOCR: ALL PASS ===');
 }
 
 // ==========================================

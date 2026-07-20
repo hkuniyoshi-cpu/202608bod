@@ -15,16 +15,12 @@
 var PT_SHEET_NAME = 'パワーチーム提出';
 var PT_DRIVE_FOLDER_NAME = 'BNI-powerteam-images';
 
-// Geminiモデル（フォールバック順）: 最初のモデルが503等で全リトライ失敗した場合、次のモデルを試行
-// 2026-07-20時点で 3.5-flash に高負荷状態が多いため 2.5-flash を優先。
-// 将来 3.5-flash が安定化したら順序を戻す（コメント参照）
-var PT_MODELS = [
-  'gemini-2.5-flash',      // 現時点で稼働率が高い（2026-10-16まで安定）
-  'gemini-3.5-flash',      // 通常推奨だが 503 多発中（回復したら1番目に戻す）
-  'gemini-2.5-pro'         // 最終フォールバック（能力高、コスト高だが可用性◎）
-];
-var PT_GEMINI_ENDPOINT_TMPL =
-  'https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent';
+// Claude Haiku 4.5 に切替（2026-07-20）
+// 理由：Gemini free tier で 3.5-flash / 2.5-flash が 503 多発、2.5-pro は 429（quota）で無料枠不可
+// Claude Haiku 4.5：手書き日本語OCR精度◎、稼働率◎、費用約2円/提出
+var PT_CLAUDE_MODEL = 'claude-haiku-4-5-20251001';
+var PT_CLAUDE_ENDPOINT = 'https://api.anthropic.com/v1/messages';
+var PT_CLAUDE_API_VERSION = '2023-06-01';
 
 var PT_STATUS = { DRAFT: 'draft', CONFIRMED: 'confirmed', DELETED: 'deleted' };
 
@@ -306,105 +302,105 @@ var PT_RESPONSE_SCHEMA = {
 };
 
 // ==========================================
-// Gemini API 呼び出し（複数画像を1回で処理）
-// images: [{base64, mime}, ...] (任意個数、通常3枚)
-// モデルフォールバック: PT_MODELS の順に試行、全ダメなら例外
+// Claude API 呼び出し（複数画像を1回で処理）
+// images: [{base64, mime}, ...] (任意個数、通常2〜3枚)
+// tool_use で構造化JSONを強制取得
 // ==========================================
-function callGeminiOCR_(images) {
-  var apiKey = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
+function callClaudeOCR_(images) {
+  var apiKey = PropertiesService.getScriptProperties().getProperty('ANTHROPIC_API_KEY');
   if (!apiKey) {
-    throw new Error('GEMINI_API_KEY がスクリプトプロパティに設定されていません');
+    throw new Error('ANTHROPIC_API_KEY がスクリプトプロパティに設定されていません');
   }
   if (!images || !images.length) {
     throw new Error('images 配列は1要素以上必須');
   }
 
-  var parts = [{ text: PT_PROMPT_TEXT }];
+  // ユーザーメッセージ: 画像複数 + プロンプトテキスト
+  var content = [];
   var i;
   for (i = 0; i < images.length; i++) {
-    parts.push({ inline_data: { mime_type: images[i].mime, data: images[i].base64 }});
+    content.push({
+      type: 'image',
+      source: {
+        type: 'base64',
+        media_type: images[i].mime || 'image/jpeg',
+        data: images[i].base64
+      }
+    });
   }
+  content.push({ type: 'text', text: PT_PROMPT_TEXT });
 
   var payload = {
-    contents: [{ parts: parts }],
-    generationConfig: {
-      response_mime_type: 'application/json',
-      response_schema: PT_RESPONSE_SCHEMA,
-      temperature: 0.1
-    }
+    model: PT_CLAUDE_MODEL,
+    max_tokens: 4096,
+    temperature: 0.1,
+    tools: [{
+      name: 'extract_worksheet',
+      description: 'BNIパワーチームワークシートの手書き内容を構造化して抽出する',
+      input_schema: PT_RESPONSE_SCHEMA
+    }],
+    tool_choice: { type: 'tool', name: 'extract_worksheet' },
+    messages: [{ role: 'user', content: content }]
   };
 
   var options = {
     method: 'post',
     contentType: 'application/json',
-    headers: { 'X-goog-api-key': apiKey },
+    headers: {
+      'x-api-key': apiKey,
+      'anthropic-version': PT_CLAUDE_API_VERSION
+    },
     payload: JSON.stringify(payload),
     muteHttpExceptions: true
   };
 
-  // モデルフォールバックループ
+  // 最大3回リトライ（Claudeは通常安定なので少なめ）
   var lastError = null;
-  var m;
-  for (m = 0; m < PT_MODELS.length; m++) {
-    var modelName = PT_MODELS[m];
-    var endpoint = PT_GEMINI_ENDPOINT_TMPL.replace('{MODEL}', modelName);
-    Logger.log('Gemini: trying model ' + modelName);
-
-    var result = _pt_callGeminiSingleModel(endpoint, options, modelName);
-    if (result.ok) {
-      Logger.log('Gemini: success with model ' + modelName);
-      return result.data;
-    }
-    lastError = result.error;
-    Logger.log('Gemini: model ' + modelName + ' failed, ' +
-      (m < PT_MODELS.length - 1 ? 'trying next model' : 'no more fallbacks'));
-  }
-  throw lastError || new Error('All Gemini models failed');
-}
-
-// 単一モデルで最大5回リトライ（指数バックオフ）
-// 戻り値: {ok: true, data: parsed} または {ok: false, error: Error}
-function _pt_callGeminiSingleModel(endpoint, options, modelLabel) {
-  var lastError = null;
-  var maxAttempts = 5;
+  var maxAttempts = 3;
   var attempt;
   for (attempt = 0; attempt < maxAttempts; attempt++) {
     if (attempt > 0) {
-      var waitMs = Math.pow(2, attempt) * 1000;
-      Logger.log('[' + modelLabel + '] retry attempt ' + (attempt + 1) + ' after ' + waitMs + 'ms wait');
+      var waitMs = Math.pow(2, attempt) * 1000; // 2s, 4s
+      Logger.log('Claude retry attempt ' + (attempt + 1) + ' after ' + waitMs + 'ms wait');
       Utilities.sleep(waitMs);
     }
     try {
-      var res = UrlFetchApp.fetch(endpoint, options);
+      Logger.log('Claude: sending request to ' + PT_CLAUDE_MODEL);
+      var res = UrlFetchApp.fetch(PT_CLAUDE_ENDPOINT, options);
       var code = res.getResponseCode();
       var body = res.getContentText();
       if (code === 200) {
         var wrapped = JSON.parse(body);
-        var jsonText = wrapped.candidates &&
-                       wrapped.candidates[0] &&
-                       wrapped.candidates[0].content &&
-                       wrapped.candidates[0].content.parts &&
-                       wrapped.candidates[0].content.parts[0] &&
-                       wrapped.candidates[0].content.parts[0].text;
-        if (!jsonText) {
-          lastError = new Error('[' + modelLabel + '] response に text がない: ' + body.substring(0, 500));
+        // tool_use ブロックから input を取り出す
+        var toolUse = null;
+        if (wrapped.content && wrapped.content.length) {
+          for (var c = 0; c < wrapped.content.length; c++) {
+            if (wrapped.content[c].type === 'tool_use' && wrapped.content[c].name === 'extract_worksheet') {
+              toolUse = wrapped.content[c];
+              break;
+            }
+          }
+        }
+        if (!toolUse || !toolUse.input) {
+          lastError = new Error('Claude response に tool_use がない: ' + body.substring(0, 500));
           continue;
         }
-        return { ok: true, data: JSON.parse(jsonText) };
+        Logger.log('Claude: success (usage=' + JSON.stringify(wrapped.usage) + ')');
+        return toolUse.input;
       }
-      var retryable = (code === 429 || code === 500 || code === 502 || code === 503 || code === 504);
-      lastError = new Error('[' + modelLabel + '] HTTP ' + code + ': ' + body.substring(0, 500));
+      var retryable = (code === 429 || code === 500 || code === 502 || code === 503 || code === 504 || code === 529);
+      lastError = new Error('Claude HTTP ' + code + ': ' + body.substring(0, 500));
       if (!retryable) {
-        Logger.log('[' + modelLabel + '] non-retryable error, aborting: HTTP ' + code);
+        Logger.log('Claude non-retryable error, aborting: HTTP ' + code);
         break;
       }
-      Logger.log('[' + modelLabel + '] retryable HTTP ' + code + ', will retry');
+      Logger.log('Claude retryable HTTP ' + code + ', will retry');
     } catch (e) {
       lastError = e;
-      Logger.log('[' + modelLabel + '] attempt ' + (attempt + 1) + ' threw: ' + e);
+      Logger.log('Claude attempt ' + (attempt + 1) + ' threw: ' + e);
     }
   }
-  return { ok: false, error: lastError };
+  throw lastError || new Error('Claude call failed after ' + maxAttempts + ' attempts');
 }
 
 // ==========================================
@@ -602,7 +598,7 @@ function pt_handleSubmit_(body) {
   var ocr;
   var warnings = [];
   try {
-    ocr = callGeminiOCR_(images);
+    ocr = callClaudeOCR_(images);
     warnings = ocr.warnings || [];
   } catch (e) {
     ocr = {
@@ -757,7 +753,7 @@ function pt_api_retryOcr(submissionId) {
   });
 
   // Gemini 再呼び出し
-  var ocr = callGeminiOCR_(images);
+  var ocr = callClaudeOCR_(images);
   var p3 = ocr.p3_page || {};
   var p4 = ocr.p4_page || {};
   var p5 = ocr.p5_page || {};
