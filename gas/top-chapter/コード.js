@@ -580,7 +580,66 @@ function onOpen() {
     .addItem('写真URLを一括変換（J列）', 'convertAllPhotoUrls')
     .addSeparator()
     .addItem('パワーチームシートをセットアップ（初回のみ）', 'setupPowerTeamSheet')
+    .addItem('🔄 選択行のAI再書起（パワーチーム提出）', 'menuRetryOcrForSelectedRow')
     .addToUi();
+}
+
+// ==========================================
+// パワーチーム提出シートの選択行を再書き起こし
+// ==========================================
+function menuRetryOcrForSelectedRow() {
+  var ui = SpreadsheetApp.getUi();
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getActiveSheet();
+
+  if (sheet.getName() !== PT_SHEET_NAME) {
+    ui.alert('この機能は「' + PT_SHEET_NAME + '」シート上で実行してください。\n' +
+             '再書き起こししたい行を選択してから、もう一度メニューから実行してください。');
+    return;
+  }
+
+  var row = sheet.getActiveRange().getRow();
+  if (row < 2) {
+    ui.alert('データ行を選択してください（1行目はヘッダー）。');
+    return;
+  }
+
+  var submissionId = sheet.getRange(row, PT_COL.submission_id).getValue();
+  var submitterName = sheet.getRange(row, PT_COL.submitter_name).getValue();
+  if (!submissionId) {
+    ui.alert('この行に submission_id がありません。');
+    return;
+  }
+
+  var confirm = ui.alert(
+    'AI再書き起こし',
+    submitterName + 'さん（' + row + '行目）の提出画像を再度Geminiで書き起こします。\n' +
+    '30秒〜1分ほどかかります。よろしいですか？',
+    ui.ButtonSet.YES_NO
+  );
+  if (confirm !== ui.Button.YES) return;
+
+  try {
+    var result = pt_api_retryOcr(submissionId);
+    var mission = (result.fields.mission || '').substring(0, 60);
+    var warnMsg = '';
+    if (result.warnings && result.warnings.length) {
+      warnMsg = '\n\n⚠️ 警告:\n- ' + result.warnings.join('\n- ');
+    }
+    ui.alert(
+      '✅ AI再書き起こし成功',
+      '提出者: ' + submitterName + '\n' +
+      'ミッション（先頭60文字）: ' + (mission || '(空)') + warnMsg,
+      ui.ButtonSet.OK
+    );
+  } catch (e) {
+    ui.alert(
+      '❌ AI再書き起こし失敗',
+      String(e).substring(0, 500) +
+      '\n\nGeminiがまだ高負荷の可能性があります。少し時間を置いて再試行してください。',
+      ui.ButtonSet.OK
+    );
+  }
 }
 
 // ==========================================
