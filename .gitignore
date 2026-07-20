@@ -1,0 +1,11 @@
+# clasp
+gas/**/.clasp.json
+gas/**/.clasprc.json
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
