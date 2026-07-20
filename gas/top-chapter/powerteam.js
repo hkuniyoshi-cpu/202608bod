@@ -291,38 +291,50 @@ function callGeminiOCR_(images) {
     muteHttpExceptions: true
   };
 
-  // 1回だけリトライ
+  // 最大5回リトライ（指数バックオフ: 2s, 4s, 8s, 16s）
+  // リトライ対象: 503 UNAVAILABLE（過負荷）, 429（レート制限）, 500, 502, 504
   var lastError = null;
   var attempt;
-  for (attempt = 0; attempt < 2; attempt++) {
+  var maxAttempts = 5;
+  for (attempt = 0; attempt < maxAttempts; attempt++) {
+    if (attempt > 0) {
+      var waitMs = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s, 16s
+      Logger.log('Gemini retry attempt ' + (attempt + 1) + ' after ' + waitMs + 'ms wait');
+      Utilities.sleep(waitMs);
+    }
     try {
       var res = UrlFetchApp.fetch(PT_GEMINI_ENDPOINT, options);
       var code = res.getResponseCode();
       var body = res.getContentText();
-      if (code !== 200) {
-        lastError = new Error('Gemini HTTP ' + code + ': ' + body.substring(0, 500));
-        continue;
+      if (code === 200) {
+        var wrapped = JSON.parse(body);
+        // Gemini構造: candidates[0].content.parts[0].text にJSON文字列
+        var jsonText = wrapped.candidates &&
+                       wrapped.candidates[0] &&
+                       wrapped.candidates[0].content &&
+                       wrapped.candidates[0].content.parts &&
+                       wrapped.candidates[0].content.parts[0] &&
+                       wrapped.candidates[0].content.parts[0].text;
+        if (!jsonText) {
+          lastError = new Error('Gemini response に text がない: ' + body.substring(0, 500));
+          continue; // レスポンス構造異常もリトライ
+        }
+        return JSON.parse(jsonText);
       }
-      var wrapped = JSON.parse(body);
-      // Gemini構造: candidates[0].content.parts[0].text にJSON文字列
-      var jsonText = wrapped.candidates &&
-                     wrapped.candidates[0] &&
-                     wrapped.candidates[0].content &&
-                     wrapped.candidates[0].content.parts &&
-                     wrapped.candidates[0].content.parts[0] &&
-                     wrapped.candidates[0].content.parts[0].text;
-      if (!jsonText) {
-        lastError = new Error('Gemini response に text がない: ' + body.substring(0, 500));
-        continue;
+      // 4xx は非リトライ（キー不正・リクエスト不正等）、5xx と 429 のみリトライ
+      var retryable = (code === 429 || code === 500 || code === 502 || code === 503 || code === 504);
+      lastError = new Error('Gemini HTTP ' + code + ': ' + body.substring(0, 500));
+      if (!retryable) {
+        Logger.log('Gemini non-retryable error, aborting: HTTP ' + code);
+        break;
       }
-      var parsed = JSON.parse(jsonText);
-      return parsed;
+      Logger.log('Gemini retryable error HTTP ' + code + ', will retry');
     } catch (e) {
       lastError = e;
-      Logger.log('Gemini call attempt ' + (attempt + 1) + ' failed: ' + e);
+      Logger.log('Gemini call attempt ' + (attempt + 1) + ' threw: ' + e);
     }
   }
-  throw lastError || new Error('Gemini call failed after retry');
+  throw lastError || new Error('Gemini call failed after ' + maxAttempts + ' attempts');
 }
 
 // ==========================================
