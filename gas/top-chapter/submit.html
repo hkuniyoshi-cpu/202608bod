@@ -17,8 +17,11 @@
   </div>
 
   <div id="step2" class="card" style="display:none;">
+    <p style="font-size:12px; color:#6B7280; margin:0 0 12px;">
+      3枚のワークシート画像をアップロードしてください（順不同OK、AIが自動判定）
+    </p>
     <div class="field">
-      <label>📄 ワークシート画像1（p.3 または p.4）</label>
+      <label>📄 ワークシート画像1</label>
       <div class="file-buttons">
         <label>📷 撮影
           <input type="file" accept="image/*" capture="environment" onchange="handleFile(1, this)">
@@ -41,6 +44,18 @@
       </div>
       <img id="preview-2" class="thumb" style="display:none; margin-top:8px;">
     </div>
+    <div class="field">
+      <label>📄 ワークシート画像3</label>
+      <div class="file-buttons">
+        <label>📷 撮影
+          <input type="file" accept="image/*" capture="environment" onchange="handleFile(3, this)">
+        </label>
+        <label style="background:#6B7280;">🖼 選択
+          <input type="file" accept="image/*,.heic" onchange="handleFile(3, this)">
+        </label>
+      </div>
+      <img id="preview-3" class="thumb" style="display:none; margin-top:8px;">
+    </div>
     <div style="display:flex; gap:8px;">
       <button class="btn secondary" onclick="goStep1()">← 戻る</button>
       <button class="btn" id="submit-btn" onclick="doSubmit()" disabled>送信 →</button>
@@ -51,7 +66,7 @@
   <div id="step25" class="card progress" style="display:none;">
     <div class="spinner"></div>
     <div class="progress-step" id="prog-1">📤 画像を圧縮しています…</div>
-    <div class="progress-step" id="prog-2" style="color:#9CA3AF;">🤖 AIが手書きを読み取っています…</div>
+    <div class="progress-step" id="prog-2" style="color:#9CA3AF;">🤖 AIが手書きを読み取っています…（最大2分）</div>
     <div class="progress-step" id="prog-3" style="color:#9CA3AF;">💾 保存しています…</div>
   </div>
 
@@ -84,13 +99,17 @@
       <div class="field"><label>その人からどんな喜びを得られるのか</label><textarea id="f-emotional_joys"></textarea></div>
       <div class="field"><label>ターゲットの困りごと・ニーズ</label><textarea id="f-target_needs"></textarea></div>
       <div class="field"><label>私のターゲットは</label><textarea id="f-target_definition"></textarea></div>
+      <h2>2つの説明文（p.5）</h2>
+      <div class="field"><label>なぜ私はこのミッションを大事にしているのか（理由）</label><textarea id="f-mission_reason" style="min-height:100px;"></textarea></div>
+      <div class="field"><label>ビジター候補者への紹介スクリプト</label><textarea id="f-introduction_script" style="min-height:100px;"></textarea></div>
     </div>
     <div class="card">
       <h2>📎 原本画像</h2>
       <p style="font-size:12px; color:#6B7280;">タップで拡大</p>
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;">
         <img id="orig-1" class="thumb" onclick="window.open(this.src)">
         <img id="orig-2" class="thumb" onclick="window.open(this.src)">
+        <img id="orig-3" class="thumb" onclick="window.open(this.src)">
       </div>
     </div>
     <div style="display:flex; gap:8px;">
@@ -108,7 +127,7 @@
   </div>
 
 <script>
-  var state = { name: '', imgs: [null, null], submissionId: null, fields: null };
+  var state = { name: '', imgs: [null, null, null], submissionId: null, fields: null };
   document.getElementById('nav-container').innerHTML = ptNav();
   document.getElementById('to-view').href = PT_BASE + '?page=view';
 
@@ -148,7 +167,7 @@
   }
 
   function updateSubmitBtn() {
-    document.getElementById('submit-btn').disabled = !(state.imgs[0] && state.imgs[1]);
+    document.getElementById('submit-btn').disabled = !(state.imgs[0] && state.imgs[1] && state.imgs[2]);
   }
 
   async function doSubmit(confirmOverwrite) {
@@ -162,6 +181,7 @@
         submitter_name: state.name,
         image1_base64: state.imgs[0].base64, image1_mime: state.imgs[0].mime,
         image2_base64: state.imgs[1].base64, image2_mime: state.imgs[1].mime,
+        image3_base64: state.imgs[2].base64, image3_mime: state.imgs[2].mime,
         confirm_overwrite: !!confirmOverwrite
       };
       var res = await ptPost('submit', body);
@@ -187,6 +207,7 @@
       });
       document.getElementById('orig-1').src = res.fields.p3_image_url;
       document.getElementById('orig-2').src = res.fields.p4_image_url;
+      document.getElementById('orig-3').src = res.fields.p5_image_url;
 
       var wc = document.getElementById('warnings-container');
       wc.innerHTML = '';
@@ -206,7 +227,8 @@
       'powerteam_name','mission','self_specialty','target',
       'specialty_1','specialty_2','specialty_3','specialty_4',
       'specialty_5','specialty_6','specialty_7',
-      'emotional_why','emotional_joys','target_needs','target_definition'
+      'emotional_why','emotional_joys','target_needs','target_definition',
+      'mission_reason','introduction_script'
     ];
     fieldKeys.forEach(function(k) { body[k] = document.getElementById('f-' + k).value; });
     var addRaw = document.getElementById('f-additional_specialties').value;

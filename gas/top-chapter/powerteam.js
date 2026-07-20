@@ -2,7 +2,8 @@
  * ==========================================================
  * BNI TOP Chapter - Power Team Worksheet Feature
  * ==========================================================
- * パワーチームワークショップのワークシート（p.3/p.4）を
+ * パワーチームワークショップの3種類のワークシート
+ * （p.3ターゲット・マーケット / p.4パワーチーム専門分野 / p.5「2つの説明文」）を
  * スマホで撮影→Gemini APIで自動書き起こし→チャプター全員で共有する機能。
  *
  * 関連: docs/superpowers/specs/2026-07-20-bni-powerteam-worksheet-design.md
@@ -13,41 +14,49 @@
 // ==========================================
 var PT_SHEET_NAME = 'パワーチーム提出';
 var PT_DRIVE_FOLDER_NAME = 'BNI-powerteam-images';
-var PT_MODEL_NAME = 'gemini-3.5-flash';
-var PT_GEMINI_ENDPOINT =
-  'https://generativelanguage.googleapis.com/v1beta/models/' +
-  PT_MODEL_NAME + ':generateContent';
+
+// Geminiモデル（フォールバック順）: 最初のモデルが503等で全リトライ失敗した場合、次のモデルを試行
+var PT_MODELS = [
+  'gemini-3.5-flash',      // 推奨（2026年5月GA、シャットダウン予定なし）
+  'gemini-2.5-flash'       // フォールバック（2026-10-16 シャットダウン予定だがそれまで安定）
+];
+var PT_GEMINI_ENDPOINT_TMPL =
+  'https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent';
 
 var PT_STATUS = { DRAFT: 'draft', CONFIRMED: 'confirmed', DELETED: 'deleted' };
 
-// シートのカラム定義（1-indexed、A列=1）
+// シートのカラム定義（1-indexed、A列=1、全30列 A-AD）
 var PT_COL = {
-  submission_id: 1,      // A
-  submitted_at: 2,       // B
-  updated_at: 3,         // C
-  submitter_name: 4,     // D
-  powerteam_name: 5,     // E
-  mission: 6,            // F
-  self_specialty: 7,     // G
-  target: 8,             // H
-  specialty_1: 9,        // I
-  specialty_2: 10,       // J
-  specialty_3: 11,       // K
-  specialty_4: 12,       // L
-  specialty_5: 13,       // M
-  specialty_6: 14,       // N
-  specialty_7: 15,       // O
+  submission_id: 1,         // A
+  submitted_at: 2,          // B
+  updated_at: 3,            // C
+  submitter_name: 4,        // D
+  powerteam_name: 5,        // E
+  mission: 6,               // F
+  self_specialty: 7,        // G
+  target: 8,                // H
+  specialty_1: 9,           // I
+  specialty_2: 10,          // J
+  specialty_3: 11,          // K
+  specialty_4: 12,          // L
+  specialty_5: 13,          // M
+  specialty_6: 14,          // N
+  specialty_7: 15,          // O
   additional_specialties: 16, // P
-  emotional_why: 17,     // Q
-  emotional_joys: 18,    // R
-  target_needs: 19,      // S
-  target_definition: 20, // T
-  p3_image_url: 21,      // U
-  p4_image_url: 22,      // V
-  p3_raw_text: 23,       // W
-  p4_raw_text: 24,       // X
-  status: 25,            // Y
-  notes: 26              // Z
+  emotional_why: 17,        // Q
+  emotional_joys: 18,       // R
+  target_needs: 19,         // S
+  target_definition: 20,    // T
+  mission_reason: 21,       // U  (新: なぜミッションを大事にしているのか)
+  introduction_script: 22,  // V  (新: 紹介スクリプト)
+  p3_image_url: 23,         // W
+  p4_image_url: 24,         // X
+  p5_image_url: 25,         // Y  (新)
+  p3_raw_text: 26,          // Z
+  p4_raw_text: 27,          // AA
+  p5_raw_text: 28,          // AB (新)
+  status: 29,               // AC
+  notes: 30                 // AD
 };
 
 var PT_HEADERS = [
@@ -56,7 +65,9 @@ var PT_HEADERS = [
   'specialty_1', 'specialty_2', 'specialty_3', 'specialty_4',
   'specialty_5', 'specialty_6', 'specialty_7', 'additional_specialties',
   'emotional_why', 'emotional_joys', 'target_needs', 'target_definition',
-  'p3_image_url', 'p4_image_url', 'p3_raw_text', 'p4_raw_text',
+  'mission_reason', 'introduction_script',
+  'p3_image_url', 'p4_image_url', 'p5_image_url',
+  'p3_raw_text', 'p4_raw_text', 'p5_raw_text',
   'status', 'notes'
 ];
 
@@ -66,7 +77,9 @@ var PT_HEADERS_JP = [
   '専門分野1', '専門分野2', '専門分野3', '専門分野4',
   '専門分野5', '専門分野6', '専門分野7', '追加専門分野',
   'なぜこの仕事', '得られる喜び', 'ターゲットのニーズ', '私のターゲット',
-  'p.3画像URL', 'p.4画像URL', 'p.3全文', 'p.4全文',
+  'ミッションの理由', '紹介スクリプト',
+  'p.3画像URL', 'p.4画像URL', 'p.5画像URL',
+  'p.3全文', 'p.4全文', 'p.5全文',
   'ステータス', '備考'
 ];
 
@@ -76,27 +89,29 @@ var PT_COL_WIDTHS = [
   120, 120, 120, 120,      // I-L
   120, 120, 120, 200,      // M-P
   260, 260, 260, 260,      // Q-T
-  200, 200, 260, 260,      // U-X
-  100, 200                 // Y-Z
+  300, 300,                // U-V (mission_reason, introduction_script)
+  200, 200, 200,           // W-Y (image URLs)
+  260, 260, 260,           // Z-AB (raw texts)
+  100, 200                 // AC-AD
 ];
 
 // ==========================================
-// シートセットアップ（Task 5）
+// シートセットアップ
 // ==========================================
 function setupPowerTeamSheet() {
   var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   var existing = ss.getSheetByName(PT_SHEET_NAME);
   if (existing) {
     SpreadsheetApp.getUi().alert(
-      'シート「' + PT_SHEET_NAME + '」は既に存在します。\n' +
-      '再セットアップは行いません。'
+      'シート「' + PT_SHEET_NAME + '」は既に存在します。\n\n' +
+      'スキーマ変更後の再作成が必要な場合、まず既存シートを右クリック→削除し、\n' +
+      '再度この関数を実行してください。'
     );
     return;
   }
   var sheet = ss.insertSheet(PT_SHEET_NAME);
   sheet.setTabColor('#8B5CF6');
 
-  // ヘッダー行（日本語ラベル）
   var hdrRange = sheet.getRange(1, 1, 1, PT_HEADERS.length);
   hdrRange.setValues([PT_HEADERS_JP]);
   hdrRange.setBackground('#8B5CF6')
@@ -104,29 +119,25 @@ function setupPowerTeamSheet() {
     .setFontWeight('bold')
     .setFontSize(11);
 
-  // 列幅
   var i;
   for (i = 0; i < PT_COL_WIDTHS.length; i++) {
     sheet.setColumnWidth(i + 1, PT_COL_WIDTHS[i]);
   }
 
-  // 固定行・列
   sheet.setFrozenRows(1);
   sheet.setFrozenColumns(1);
 
-  // status列プルダウン
   var statusRule = SpreadsheetApp.newDataValidation()
     .requireValueInList([PT_STATUS.DRAFT, PT_STATUS.CONFIRMED, PT_STATUS.DELETED], true)
     .setAllowInvalid(false)
     .build();
   sheet.getRange(2, PT_COL.status, 500, 1).setDataValidation(statusRule);
 
-  // 全体の枠線
   sheet.getRange(1, 1, 501, PT_HEADERS.length)
     .setBorder(true, true, true, true, true, true);
 
   SpreadsheetApp.getUi().alert(
-    'シート「' + PT_SHEET_NAME + '」を作成しました。\n\n' +
+    'シート「' + PT_SHEET_NAME + '」を作成しました（全30列 A-AD）。\n\n' +
     '次のステップ:\n' +
     '- Gemini APIキーがスクリプトプロパティに保存されているか確認\n' +
     '- test_callGeminiOCR を実行して動作確認'
@@ -147,12 +158,12 @@ function getPowerTeamFolder_() {
 }
 
 // ==========================================
-// 画像2枚を Drive に保存、公開URL返却（Task 6）
-// images: [{base64: 'AAA...', mime: 'image/jpeg'}, {...}]
+// 画像を Drive に保存、公開URL配列を返却
+// images: [{base64, mime}, ...] (任意個数)
 // ==========================================
 function saveImagesToDrive_(images, submitterName) {
-  if (!images || images.length !== 2) {
-    throw new Error('images 配列は2要素必須');
+  if (!images || !images.length) {
+    throw new Error('images 配列は1要素以上必須');
   }
   var folder = getPowerTeamFolder_();
   var ts = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMdd-HHmmss');
@@ -172,12 +183,12 @@ function saveImagesToDrive_(images, submitterName) {
 }
 
 // ==========================================
-// Gemini OCR プロンプト（Task 7）
+// Gemini OCR プロンプト（3ページ対応）
 // ==========================================
 var PT_PROMPT_TEXT =
   'あなたは日本語の手書きワークシートを読み取るOCRアシスタントです。\n' +
-  '2枚の画像はBNIパワーチームワークショップのワークシートです。\n' +
-  'それぞれが以下のどちらかです（画像の順序は不定、内容から自動判定してください）：\n\n' +
+  '3枚の画像はBNIパワーチームワークショップのワークシートです。\n' +
+  'それぞれが以下のいずれかです（画像の順序は不定、内容から自動判定してください）：\n\n' +
   '■ p.3「ターゲット・マーケットワークシート」の識別特徴\n' +
   '- タイトルに「ターゲット・マーケットワークシート」\n' +
   '- 【感情的なつながり】【具体的なターゲット】のセクション\n' +
@@ -193,12 +204,20 @@ var PT_PROMPT_TEXT =
   '- 中央部に円形配置された「専門分野1〜7」「あなた」「ターゲット」\n\n' +
   '【抽出項目】\n' +
   '- mission: ミッション欄の全文（複数行OK）\n' +
-  '- powerteam_name: パワーチーム名欄。取り消し線がある場合は最終案（残された方）を採用\n' +
+  '- powerteam_name: パワーチーム名欄。取り消し線がある場合は最終案（残された方）を採用。空欄なら空文字\n' +
   '- self_specialty: 「あなた」の赤い円内のテキスト\n' +
   '- target: 「ターゲット」の赤い円内のテキスト\n' +
-  '- specialty_1〜7: 「専門分野1」〜「専門分野7」の各円内のテキスト\n' +
+  '- specialty_1〜7: 「専門分野1」〜「専門分野7」の各円内のテキスト（空欄なら空文字）\n' +
   '- additional_specialties: 円の外側に書かれた項目の配列\n' +
   '  例: ["マーケター","デザイナー","ポスティング"]\n\n' +
+  '■ p.5「2つの説明文」の識別特徴\n' +
+  '- タイトルに「2つの説明文」\n' +
+  '- ■なぜ私はこのミッションを大事にしているのか？（このミッションの理由）\n' +
+  '- ■メンバーがビジター候補者へあなたを紹介するスクリプト\n' +
+  '- 主に横罫線上に手書きテキスト\n\n' +
+  '【抽出項目】\n' +
+  '- mission_reason: 「なぜ私はこのミッションを大事にしているのか？」の回答全文\n' +
+  '- introduction_script: 「メンバーがビジター候補者へあなたを紹介するスクリプト」の回答全文\n\n' +
   '■ 共通ルール\n' +
   '1. 手書き原文のまま忠実に書き起こす。要約・解釈・整形は禁止\n' +
   '2. 読めない文字は「?」で置き換え、warnings 配列に「〇〇の一部が読めません」を追加\n' +
@@ -206,8 +225,9 @@ var PT_PROMPT_TEXT =
   '4. 各ページの raw_text にはそのページ全体の書き起こし全文を\n' +
   '   レイアウト無視で上→下・左→右の順で1つの文字列に\n' +
   '5. 該当ページが見つからなければ detected: false、warnings に理由を記述\n' +
-  '6. 両方とも同じページと判定した場合、より鮮明な方を優先し\n' +
-  '   warnings に「同じページの可能性」を記述';
+  '6. 複数の画像が同じページと判定された場合、より鮮明な方を優先し\n' +
+  '   warnings に「同じページの可能性: p.X」を記述\n' +
+  '7. ページ枠外の走り書き・メモは無視して良い';
 
 var PT_RESPONSE_SCHEMA = {
   type: 'object',
@@ -247,35 +267,46 @@ var PT_RESPONSE_SCHEMA = {
       },
       required: ['detected', 'raw_text']
     },
+    p5_page: {
+      type: 'object',
+      properties: {
+        detected: { type: 'boolean' },
+        mission_reason: { type: 'string' },
+        introduction_script: { type: 'string' },
+        raw_text: { type: 'string' }
+      },
+      required: ['detected', 'raw_text']
+    },
     warnings: {
       type: 'array',
       items: { type: 'string' }
     }
   },
-  required: ['p3_page', 'p4_page', 'warnings']
+  required: ['p3_page', 'p4_page', 'p5_page', 'warnings']
 };
 
 // ==========================================
-// Gemini API 呼び出し（両画像を1回で処理）
-// images: [{base64, mime}, {base64, mime}]
+// Gemini API 呼び出し（複数画像を1回で処理）
+// images: [{base64, mime}, ...] (任意個数、通常3枚)
+// モデルフォールバック: PT_MODELS の順に試行、全ダメなら例外
 // ==========================================
 function callGeminiOCR_(images) {
   var apiKey = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
   if (!apiKey) {
     throw new Error('GEMINI_API_KEY がスクリプトプロパティに設定されていません');
   }
-  if (!images || images.length !== 2) {
-    throw new Error('images 配列は2要素必須');
+  if (!images || !images.length) {
+    throw new Error('images 配列は1要素以上必須');
+  }
+
+  var parts = [{ text: PT_PROMPT_TEXT }];
+  var i;
+  for (i = 0; i < images.length; i++) {
+    parts.push({ inline_data: { mime_type: images[i].mime, data: images[i].base64 }});
   }
 
   var payload = {
-    contents: [{
-      parts: [
-        { text: PT_PROMPT_TEXT },
-        { inline_data: { mime_type: images[0].mime, data: images[0].base64 }},
-        { inline_data: { mime_type: images[1].mime, data: images[1].base64 }}
-      ]
-    }],
+    contents: [{ parts: parts }],
     generationConfig: {
       response_mime_type: 'application/json',
       response_schema: PT_RESPONSE_SCHEMA,
@@ -291,24 +322,44 @@ function callGeminiOCR_(images) {
     muteHttpExceptions: true
   };
 
-  // 最大5回リトライ（指数バックオフ: 2s, 4s, 8s, 16s）
-  // リトライ対象: 503 UNAVAILABLE（過負荷）, 429（レート制限）, 500, 502, 504
+  // モデルフォールバックループ
   var lastError = null;
-  var attempt;
+  var m;
+  for (m = 0; m < PT_MODELS.length; m++) {
+    var modelName = PT_MODELS[m];
+    var endpoint = PT_GEMINI_ENDPOINT_TMPL.replace('{MODEL}', modelName);
+    Logger.log('Gemini: trying model ' + modelName);
+
+    var result = _pt_callGeminiSingleModel(endpoint, options, modelName);
+    if (result.ok) {
+      Logger.log('Gemini: success with model ' + modelName);
+      return result.data;
+    }
+    lastError = result.error;
+    Logger.log('Gemini: model ' + modelName + ' failed, ' +
+      (m < PT_MODELS.length - 1 ? 'trying next model' : 'no more fallbacks'));
+  }
+  throw lastError || new Error('All Gemini models failed');
+}
+
+// 単一モデルで最大5回リトライ（指数バックオフ）
+// 戻り値: {ok: true, data: parsed} または {ok: false, error: Error}
+function _pt_callGeminiSingleModel(endpoint, options, modelLabel) {
+  var lastError = null;
   var maxAttempts = 5;
+  var attempt;
   for (attempt = 0; attempt < maxAttempts; attempt++) {
     if (attempt > 0) {
-      var waitMs = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s, 16s
-      Logger.log('Gemini retry attempt ' + (attempt + 1) + ' after ' + waitMs + 'ms wait');
+      var waitMs = Math.pow(2, attempt) * 1000;
+      Logger.log('[' + modelLabel + '] retry attempt ' + (attempt + 1) + ' after ' + waitMs + 'ms wait');
       Utilities.sleep(waitMs);
     }
     try {
-      var res = UrlFetchApp.fetch(PT_GEMINI_ENDPOINT, options);
+      var res = UrlFetchApp.fetch(endpoint, options);
       var code = res.getResponseCode();
       var body = res.getContentText();
       if (code === 200) {
         var wrapped = JSON.parse(body);
-        // Gemini構造: candidates[0].content.parts[0].text にJSON文字列
         var jsonText = wrapped.candidates &&
                        wrapped.candidates[0] &&
                        wrapped.candidates[0].content &&
@@ -316,29 +367,28 @@ function callGeminiOCR_(images) {
                        wrapped.candidates[0].content.parts[0] &&
                        wrapped.candidates[0].content.parts[0].text;
         if (!jsonText) {
-          lastError = new Error('Gemini response に text がない: ' + body.substring(0, 500));
-          continue; // レスポンス構造異常もリトライ
+          lastError = new Error('[' + modelLabel + '] response に text がない: ' + body.substring(0, 500));
+          continue;
         }
-        return JSON.parse(jsonText);
+        return { ok: true, data: JSON.parse(jsonText) };
       }
-      // 4xx は非リトライ（キー不正・リクエスト不正等）、5xx と 429 のみリトライ
       var retryable = (code === 429 || code === 500 || code === 502 || code === 503 || code === 504);
-      lastError = new Error('Gemini HTTP ' + code + ': ' + body.substring(0, 500));
+      lastError = new Error('[' + modelLabel + '] HTTP ' + code + ': ' + body.substring(0, 500));
       if (!retryable) {
-        Logger.log('Gemini non-retryable error, aborting: HTTP ' + code);
+        Logger.log('[' + modelLabel + '] non-retryable error, aborting: HTTP ' + code);
         break;
       }
-      Logger.log('Gemini retryable error HTTP ' + code + ', will retry');
+      Logger.log('[' + modelLabel + '] retryable HTTP ' + code + ', will retry');
     } catch (e) {
       lastError = e;
-      Logger.log('Gemini call attempt ' + (attempt + 1) + ' threw: ' + e);
+      Logger.log('[' + modelLabel + '] attempt ' + (attempt + 1) + ' threw: ' + e);
     }
   }
-  throw lastError || new Error('Gemini call failed after ' + maxAttempts + ' attempts');
+  return { ok: false, error: lastError };
 }
 
 // ==========================================
-// シート CRUD 内部ヘルパー（Task 8）
+// シート CRUD 内部ヘルパー
 // ==========================================
 function _pt_rowToObject(row) {
   var obj = {};
@@ -346,7 +396,6 @@ function _pt_rowToObject(row) {
   for (i = 0; i < PT_HEADERS.length; i++) {
     obj[PT_HEADERS[i]] = _pt_normalizeCell(row[i]);
   }
-  // additional_specialties はカンマ区切り文字列 → 配列に
   if (obj.additional_specialties) {
     obj.additional_specialties = String(obj.additional_specialties)
       .split(',').map(function(s) { return s.trim(); }).filter(function(s) { return s; });
@@ -375,7 +424,7 @@ function _pt_getSheet() {
 }
 
 // ==========================================
-// シート CRUD（Task 8）
+// シート CRUD
 // ==========================================
 function getPowerTeamAll_(includeDraft) {
   var sheet = _pt_getSheet();
@@ -415,12 +464,23 @@ function getPowerTeamOne_(name) {
   return null;
 }
 
+// 全書き込み可能フィールドのリスト
+var PT_WRITABLE_FIELDS = [
+  'submitter_name', 'powerteam_name', 'mission', 'self_specialty', 'target',
+  'specialty_1', 'specialty_2', 'specialty_3', 'specialty_4',
+  'specialty_5', 'specialty_6', 'specialty_7', 'additional_specialties',
+  'emotional_why', 'emotional_joys', 'target_needs', 'target_definition',
+  'mission_reason', 'introduction_script',
+  'p3_image_url', 'p4_image_url', 'p5_image_url',
+  'p3_raw_text', 'p4_raw_text', 'p5_raw_text',
+  'notes'
+];
+
 function savePowerTeamRow_(fields) {
   if (!fields.submitter_name) throw new Error('submitter_name が必須');
   var sheet = _pt_getSheet();
   var now = new Date();
 
-  // 既存行チェック（同名は上書き）
   var existing = getPowerTeamOne_(fields.submitter_name);
   if (existing) {
     return updatePowerTeamRow_(existing.submission_id, fields);
@@ -432,17 +492,9 @@ function savePowerTeamRow_(fields) {
   row[PT_COL.updated_at - 1] = now;
   row[PT_COL.status - 1] = fields.status || PT_STATUS.DRAFT;
 
-  var writable = [
-    'submitter_name', 'powerteam_name', 'mission', 'self_specialty', 'target',
-    'specialty_1', 'specialty_2', 'specialty_3', 'specialty_4',
-    'specialty_5', 'specialty_6', 'specialty_7',
-    'additional_specialties',
-    'emotional_why', 'emotional_joys', 'target_needs', 'target_definition',
-    'p3_image_url', 'p4_image_url', 'p3_raw_text', 'p4_raw_text', 'notes'
-  ];
   var i;
-  for (i = 0; i < writable.length; i++) {
-    var key = writable[i];
+  for (i = 0; i < PT_WRITABLE_FIELDS.length; i++) {
+    var key = PT_WRITABLE_FIELDS[i];
     var val = fields[key];
     if (val === undefined || val === null) continue;
     if (key === 'additional_specialties' && Array.isArray(val)) {
@@ -476,16 +528,10 @@ function updatePowerTeamRow_(submissionId, fields) {
   var now = new Date();
   sheet.getRange(rowIndex, PT_COL.updated_at).setValue(now);
 
-  var writable = [
-    'submitter_name', 'powerteam_name', 'mission', 'self_specialty', 'target',
-    'specialty_1', 'specialty_2', 'specialty_3', 'specialty_4',
-    'specialty_5', 'specialty_6', 'specialty_7',
-    'additional_specialties',
-    'emotional_why', 'emotional_joys', 'target_needs', 'target_definition',
-    'p3_image_url', 'p4_image_url', 'p3_raw_text', 'p4_raw_text', 'notes', 'status'
-  ];
-  for (i = 0; i < writable.length; i++) {
-    var key = writable[i];
+  // status は writable にはあるが、undefined 時は上書きしない
+  var updatableWithStatus = PT_WRITABLE_FIELDS.concat(['status']);
+  for (i = 0; i < updatableWithStatus.length; i++) {
+    var key = updatableWithStatus[i];
     var val = fields[key];
     if (val === undefined) continue;
     if (key === 'additional_specialties' && Array.isArray(val)) {
@@ -505,13 +551,14 @@ function deletePowerTeamRow_(submissionId) {
 }
 
 // ==========================================
-// doPost ハンドラ（Task 9）
+// doPost ハンドラ
 // ==========================================
 function pt_handleSubmit_(body) {
   if (!body.submitter_name) throw new Error('submitter_name is required');
-  if (!body.image1_base64 || !body.image2_base64) throw new Error('2 images required');
+  if (!body.image1_base64 || !body.image2_base64 || !body.image3_base64) {
+    throw new Error('3 images required (image1, image2, image3)');
+  }
 
-  // 事前チェック: needsConfirm （既存者への上書き）
   if (!body.confirm_overwrite) {
     var existing = getPowerTeamOne_(body.submitter_name);
     if (existing) {
@@ -524,13 +571,12 @@ function pt_handleSubmit_(body) {
 
   var images = [
     { base64: body.image1_base64, mime: body.image1_mime || 'image/jpeg' },
-    { base64: body.image2_base64, mime: body.image2_mime || 'image/jpeg' }
+    { base64: body.image2_base64, mime: body.image2_mime || 'image/jpeg' },
+    { base64: body.image3_base64, mime: body.image3_mime || 'image/jpeg' }
   ];
 
-  // Drive保存
   var urls = saveImagesToDrive_(images, body.submitter_name);
 
-  // Gemini OCR
   var ocr;
   var warnings = [];
   try {
@@ -539,34 +585,43 @@ function pt_handleSubmit_(body) {
   } catch (e) {
     ocr = {
       p3_page: { detected: false, raw_text: '' },
-      p4_page: { detected: false, raw_text: '' }
+      p4_page: { detected: false, raw_text: '' },
+      p5_page: { detected: false, raw_text: '' }
     };
     warnings = ['AI書き起こしに失敗しました（' + String(e).substring(0, 200) +
                 '）。手入力で完成させてください。'];
   }
 
+  var p3 = ocr.p3_page || {};
+  var p4 = ocr.p4_page || {};
+  var p5 = ocr.p5_page || {};
+
   var fields = {
     submitter_name: body.submitter_name,
-    powerteam_name: (ocr.p4_page && ocr.p4_page.powerteam_name) || '',
-    mission: (ocr.p4_page && ocr.p4_page.mission) || '',
-    self_specialty: (ocr.p4_page && ocr.p4_page.self_specialty) || '',
-    target: (ocr.p4_page && ocr.p4_page.target) || '',
-    specialty_1: (ocr.p4_page && ocr.p4_page.specialty_1) || '',
-    specialty_2: (ocr.p4_page && ocr.p4_page.specialty_2) || '',
-    specialty_3: (ocr.p4_page && ocr.p4_page.specialty_3) || '',
-    specialty_4: (ocr.p4_page && ocr.p4_page.specialty_4) || '',
-    specialty_5: (ocr.p4_page && ocr.p4_page.specialty_5) || '',
-    specialty_6: (ocr.p4_page && ocr.p4_page.specialty_6) || '',
-    specialty_7: (ocr.p4_page && ocr.p4_page.specialty_7) || '',
-    additional_specialties: (ocr.p4_page && ocr.p4_page.additional_specialties) || [],
-    emotional_why: (ocr.p3_page && ocr.p3_page.emotional_why) || '',
-    emotional_joys: (ocr.p3_page && ocr.p3_page.emotional_joys) || '',
-    target_needs: (ocr.p3_page && ocr.p3_page.target_needs) || '',
-    target_definition: (ocr.p3_page && ocr.p3_page.target_definition) || '',
+    powerteam_name: p4.powerteam_name || '',
+    mission: p4.mission || '',
+    self_specialty: p4.self_specialty || '',
+    target: p4.target || '',
+    specialty_1: p4.specialty_1 || '',
+    specialty_2: p4.specialty_2 || '',
+    specialty_3: p4.specialty_3 || '',
+    specialty_4: p4.specialty_4 || '',
+    specialty_5: p4.specialty_5 || '',
+    specialty_6: p4.specialty_6 || '',
+    specialty_7: p4.specialty_7 || '',
+    additional_specialties: p4.additional_specialties || [],
+    emotional_why: p3.emotional_why || '',
+    emotional_joys: p3.emotional_joys || '',
+    target_needs: p3.target_needs || '',
+    target_definition: p3.target_definition || '',
+    mission_reason: p5.mission_reason || '',
+    introduction_script: p5.introduction_script || '',
     p3_image_url: urls[0],
     p4_image_url: urls[1],
-    p3_raw_text: (ocr.p3_page && ocr.p3_page.raw_text) || '',
-    p4_raw_text: (ocr.p4_page && ocr.p4_page.raw_text) || '',
+    p5_image_url: urls[2],
+    p3_raw_text: p3.raw_text || '',
+    p4_raw_text: p4.raw_text || '',
+    p5_raw_text: p5.raw_text || '',
     status: PT_STATUS.DRAFT
   };
 
@@ -592,7 +647,7 @@ function pt_handleDelete_(body) {
 }
 
 // ==========================================
-// HTMLページ返却（Task 9）
+// HTMLページ返却
 // ==========================================
 function pt_renderPage_(pageName) {
   var allowed = { view: 1, submit: 1, edit: 1, admin: 1 };

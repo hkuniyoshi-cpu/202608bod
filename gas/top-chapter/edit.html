@@ -53,12 +53,16 @@
       <div class="field"><label>その人からどんな喜びを得られるのか</label><textarea id="f-emotional_joys"></textarea></div>
       <div class="field"><label>ターゲットの困りごと・ニーズ</label><textarea id="f-target_needs"></textarea></div>
       <div class="field"><label>私のターゲットは</label><textarea id="f-target_definition"></textarea></div>
+      <h2>2つの説明文（p.5）</h2>
+      <div class="field"><label>なぜ私はこのミッションを大事にしているのか（理由）</label><textarea id="f-mission_reason" style="min-height:100px;"></textarea></div>
+      <div class="field"><label>ビジター候補者への紹介スクリプト</label><textarea id="f-introduction_script" style="min-height:100px;"></textarea></div>
     </div>
     <div class="card">
       <h2>📎 原本画像</h2>
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;">
         <img id="orig-1" class="thumb" onclick="window.open(this.src)">
         <img id="orig-2" class="thumb" onclick="window.open(this.src)">
+        <img id="orig-3" class="thumb" onclick="window.open(this.src)">
       </div>
     </div>
     <div style="display:flex; gap:8px;">
@@ -113,13 +117,15 @@
       'powerteam_name','mission','self_specialty','target',
       'specialty_1','specialty_2','specialty_3','specialty_4',
       'specialty_5','specialty_6','specialty_7',
-      'emotional_why','emotional_joys','target_needs','target_definition'
+      'emotional_why','emotional_joys','target_needs','target_definition',
+      'mission_reason','introduction_script'
     ];
     keys.forEach(function(k) { document.getElementById('f-' + k).value = item[k] || ''; });
     document.getElementById('f-additional_specialties').value =
       (item.additional_specialties || []).join(', ');
     document.getElementById('orig-1').src = item.p3_image_url || '';
     document.getElementById('orig-2').src = item.p4_image_url || '';
+    document.getElementById('orig-3').src = item.p5_image_url || '';
     show('step3');
   }
 
@@ -133,7 +139,8 @@
       'powerteam_name','mission','self_specialty','target',
       'specialty_1','specialty_2','specialty_3','specialty_4',
       'specialty_5','specialty_6','specialty_7',
-      'emotional_why','emotional_joys','target_needs','target_definition'
+      'emotional_why','emotional_joys','target_needs','target_definition',
+      'mission_reason','introduction_script'
     ];
     keys.forEach(function(k) { body[k] = document.getElementById('f-' + k).value; });
     var addRaw = document.getElementById('f-additional_specialties').value;
