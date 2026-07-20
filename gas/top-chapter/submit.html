@@ -18,10 +18,12 @@
 
   <div id="step2" class="card" style="display:none;">
     <p style="font-size:12px; color:#6B7280; margin:0 0 12px;">
-      3枚のワークシート画像をアップロードしてください（順不同OK、AIが自動判定）
+      ワークシート p.3 / p.4 / p.5 の3ページを撮影してください。<br>
+      見開きで撮って1枚に2ページ写せる場合は2枚、1ページずつなら3枚でOK。<br>
+      順不同・AIが自動でページを判別します。
     </p>
     <div class="field">
-      <label>📄 ワークシート画像1</label>
+      <label>📄 画像 1（必須）</label>
       <div class="file-buttons">
         <label>📷 撮影
           <input type="file" accept="image/*" capture="environment" onchange="handleFile(1, this)">
@@ -33,7 +35,7 @@
       <img id="preview-1" class="thumb" style="display:none; margin-top:8px;">
     </div>
     <div class="field">
-      <label>📄 ワークシート画像2</label>
+      <label>📄 画像 2（必須）</label>
       <div class="file-buttons">
         <label>📷 撮影
           <input type="file" accept="image/*" capture="environment" onchange="handleFile(2, this)">
@@ -45,7 +47,7 @@
       <img id="preview-2" class="thumb" style="display:none; margin-top:8px;">
     </div>
     <div class="field">
-      <label>📄 ワークシート画像3</label>
+      <label>📄 画像 3（任意 / 3枚に分けて撮る場合のみ）</label>
       <div class="file-buttons">
         <label>📷 撮影
           <input type="file" accept="image/*" capture="environment" onchange="handleFile(3, this)">
@@ -167,7 +169,8 @@
   }
 
   function updateSubmitBtn() {
-    document.getElementById('submit-btn').disabled = !(state.imgs[0] && state.imgs[1] && state.imgs[2]);
+    // 最低2枚必須、3枚目は任意
+    document.getElementById('submit-btn').disabled = !(state.imgs[0] && state.imgs[1]);
   }
 
   async function doSubmit(confirmOverwrite) {
@@ -181,9 +184,12 @@
         submitter_name: state.name,
         image1_base64: state.imgs[0].base64, image1_mime: state.imgs[0].mime,
         image2_base64: state.imgs[1].base64, image2_mime: state.imgs[1].mime,
-        image3_base64: state.imgs[2].base64, image3_mime: state.imgs[2].mime,
         confirm_overwrite: !!confirmOverwrite
       };
+      if (state.imgs[2]) {
+        body.image3_base64 = state.imgs[2].base64;
+        body.image3_mime = state.imgs[2].mime;
+      }
       var res = await ptPost('submit', body);
       if (res.needsConfirm) {
         if (confirm(res.message)) return doSubmit(true);
@@ -205,9 +211,17 @@
           el.value = res.fields[k] || '';
         }
       });
-      document.getElementById('orig-1').src = res.fields.p3_image_url;
-      document.getElementById('orig-2').src = res.fields.p4_image_url;
-      document.getElementById('orig-3').src = res.fields.p5_image_url;
+      // 画像は 2〜3 枚可変。存在するものだけ表示
+      var imgUrls = [res.fields.image_1_url, res.fields.image_2_url, res.fields.image_3_url];
+      for (var ii = 0; ii < 3; ii++) {
+        var origEl = document.getElementById('orig-' + (ii + 1));
+        if (imgUrls[ii]) {
+          origEl.src = imgUrls[ii];
+          origEl.style.display = '';
+        } else {
+          origEl.style.display = 'none';
+        }
+      }
 
       var wc = document.getElementById('warnings-container');
       wc.innerHTML = '';

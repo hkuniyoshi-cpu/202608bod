@@ -123,9 +123,16 @@
     keys.forEach(function(k) { document.getElementById('f-' + k).value = item[k] || ''; });
     document.getElementById('f-additional_specialties').value =
       (item.additional_specialties || []).join(', ');
-    document.getElementById('orig-1').src = item.p3_image_url || '';
-    document.getElementById('orig-2').src = item.p4_image_url || '';
-    document.getElementById('orig-3').src = item.p5_image_url || '';
+    var imgUrls = [item.image_1_url, item.image_2_url, item.image_3_url];
+    for (var ii = 0; ii < 3; ii++) {
+      var origEl = document.getElementById('orig-' + (ii + 1));
+      if (imgUrls[ii]) {
+        origEl.src = imgUrls[ii];
+        origEl.style.display = '';
+      } else {
+        origEl.style.display = 'none';
+      }
+    }
     show('step3');
   }
 

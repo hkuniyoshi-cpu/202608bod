@@ -49,9 +49,9 @@ var PT_COL = {
   target_definition: 20,    // T
   mission_reason: 21,       // U  (新: なぜミッションを大事にしているのか)
   introduction_script: 22,  // V  (新: 紹介スクリプト)
-  p3_image_url: 23,         // W
-  p4_image_url: 24,         // X
-  p5_image_url: 25,         // Y  (新)
+  image_1_url: 23,          // W (画像URL 1）
+  image_2_url: 24,          // X (画像URL 2）
+  image_3_url: 25,          // Y (画像URL 3、任意)
   p3_raw_text: 26,          // Z
   p4_raw_text: 27,          // AA
   p5_raw_text: 28,          // AB (新)
@@ -66,7 +66,7 @@ var PT_HEADERS = [
   'specialty_5', 'specialty_6', 'specialty_7', 'additional_specialties',
   'emotional_why', 'emotional_joys', 'target_needs', 'target_definition',
   'mission_reason', 'introduction_script',
-  'p3_image_url', 'p4_image_url', 'p5_image_url',
+  'image_1_url', 'image_2_url', 'image_3_url',
   'p3_raw_text', 'p4_raw_text', 'p5_raw_text',
   'status', 'notes'
 ];
@@ -78,7 +78,7 @@ var PT_HEADERS_JP = [
   '専門分野5', '専門分野6', '専門分野7', '追加専門分野',
   'なぜこの仕事', '得られる喜び', 'ターゲットのニーズ', '私のターゲット',
   'ミッションの理由', '紹介スクリプト',
-  'p.3画像URL', 'p.4画像URL', 'p.5画像URL',
+  '画像URL 1', '画像URL 2', '画像URL 3',
   'p.3全文', 'p.4全文', 'p.5全文',
   'ステータス', '備考'
 ];
@@ -198,8 +198,10 @@ function saveImagesToDrive_(images, submitterName) {
 // ==========================================
 var PT_PROMPT_TEXT =
   'あなたは日本語の手書きワークシートを読み取るOCRアシスタントです。\n' +
-  '3枚の画像はBNIパワーチームワークショップのワークシートです。\n' +
-  'それぞれが以下のいずれかです（画像の順序は不定、内容から自動判定してください）：\n\n' +
+  '2〜3枚の画像はBNIパワーチームワークショップのワークシートです。\n' +
+  '1枚の画像に複数ページが写っている場合もあります（例：ノートの見開きで撮影）。\n' +
+  '合計で3種類のページ（p.3 / p.4 / p.5）を全て検出し、それぞれ抽出してください。\n' +
+  '画像の順序・枚数は不定です。内容から自動判定してください。\n\n' +
   '■ p.3「ターゲット・マーケットワークシート」の識別特徴\n' +
   '- タイトルに「ターゲット・マーケットワークシート」\n' +
   '- 【感情的なつながり】【具体的なターゲット】のセクション\n' +
@@ -482,7 +484,7 @@ var PT_WRITABLE_FIELDS = [
   'specialty_5', 'specialty_6', 'specialty_7', 'additional_specialties',
   'emotional_why', 'emotional_joys', 'target_needs', 'target_definition',
   'mission_reason', 'introduction_script',
-  'p3_image_url', 'p4_image_url', 'p5_image_url',
+  'image_1_url', 'image_2_url', 'image_3_url',
   'p3_raw_text', 'p4_raw_text', 'p5_raw_text',
   'notes'
 ];
@@ -566,8 +568,8 @@ function deletePowerTeamRow_(submissionId) {
 // ==========================================
 function pt_handleSubmit_(body) {
   if (!body.submitter_name) throw new Error('submitter_name is required');
-  if (!body.image1_base64 || !body.image2_base64 || !body.image3_base64) {
-    throw new Error('3 images required (image1, image2, image3)');
+  if (!body.image1_base64 || !body.image2_base64) {
+    throw new Error('At least 2 images required (image1, image2). image3 optional.');
   }
 
   if (!body.confirm_overwrite) {
@@ -582,9 +584,11 @@ function pt_handleSubmit_(body) {
 
   var images = [
     { base64: body.image1_base64, mime: body.image1_mime || 'image/jpeg' },
-    { base64: body.image2_base64, mime: body.image2_mime || 'image/jpeg' },
-    { base64: body.image3_base64, mime: body.image3_mime || 'image/jpeg' }
+    { base64: body.image2_base64, mime: body.image2_mime || 'image/jpeg' }
   ];
+  if (body.image3_base64) {
+    images.push({ base64: body.image3_base64, mime: body.image3_mime || 'image/jpeg' });
+  }
 
   var urls = saveImagesToDrive_(images, body.submitter_name);
 
@@ -627,9 +631,9 @@ function pt_handleSubmit_(body) {
     target_definition: p3.target_definition || '',
     mission_reason: p5.mission_reason || '',
     introduction_script: p5.introduction_script || '',
-    p3_image_url: urls[0],
-    p4_image_url: urls[1],
-    p5_image_url: urls[2],
+    image_1_url: urls[0] || '',
+    image_2_url: urls[1] || '',
+    image_3_url: urls[2] || '',
     p3_raw_text: p3.raw_text || '',
     p4_raw_text: p4.raw_text || '',
     p5_raw_text: p5.raw_text || '',

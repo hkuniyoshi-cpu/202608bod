@@ -118,10 +118,12 @@
     html += '<h2>❤️ なぜこのミッションを大事にしているのか</h2><div>' + ptEscapeHtml(m.mission_reason).replace(/\n/g, '<br>') + '</div>';
     html += '<h2>🗣 ビジター候補者への紹介スクリプト</h2><div>' + ptEscapeHtml(m.introduction_script).replace(/\n/g, '<br>') + '</div>';
     html += '<h2>📎 原本画像</h2>';
-    html += '<div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;">';
-    html += '<img class="thumb" src="' + ptEscapeHtml(m.p3_image_url) + '" onclick="window.open(this.src)">';
-    html += '<img class="thumb" src="' + ptEscapeHtml(m.p4_image_url) + '" onclick="window.open(this.src)">';
-    html += '<img class="thumb" src="' + ptEscapeHtml(m.p5_image_url) + '" onclick="window.open(this.src)">';
+    var imgUrls = [m.image_1_url, m.image_2_url, m.image_3_url].filter(function(u) { return !!u; });
+    var cols = imgUrls.length;
+    html += '<div style="display:grid; grid-template-columns:repeat(' + cols + ', 1fr); gap:8px;">';
+    imgUrls.forEach(function(u) {
+      html += '<img class="thumb" src="' + ptEscapeHtml(u) + '" onclick="window.open(this.src)">';
+    });
     html += '</div>';
     document.getElementById('modal-body').innerHTML = html;
     document.getElementById('modal').classList.add('open');

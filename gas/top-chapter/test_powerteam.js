@@ -63,21 +63,19 @@ function test_setupPowerTeamSheet() {
 }
 
 // ==========================================
-// Drive画像保存ヘルパーのテスト（3枚）
+// Drive画像保存ヘルパーのテスト（可変枚数）
 // ==========================================
 function test_saveImagesToDrive() {
   var TINY_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
   var images = [
     { base64: TINY_PNG, mime: 'image/png' },
-    { base64: TINY_PNG, mime: 'image/png' },
     { base64: TINY_PNG, mime: 'image/png' }
   ];
   var urls = saveImagesToDrive_(images, 'テスト太郎');
 
-  _pt_assertEquals(urls.length, 3, '3つのURLが返る');
+  _pt_assertEquals(urls.length, 2, '2つのURLが返る');
   _pt_assertMatch(urls[0], /^https:\/\/lh3\.googleusercontent\.com\/d\//, 'URL1がGoogle thumbnail形式');
   _pt_assertMatch(urls[1], /^https:\/\/lh3\.googleusercontent\.com\/d\//, 'URL2がGoogle thumbnail形式');
-  _pt_assertMatch(urls[2], /^https:\/\/lh3\.googleusercontent\.com\/d\//, 'URL3がGoogle thumbnail形式');
 
   var folder = getPowerTeamFolder_();
   _pt_assertTruthy(folder, 'Driveフォルダが取得できる');
@@ -85,15 +83,17 @@ function test_saveImagesToDrive() {
 
   Logger.log('URLs: ' + JSON.stringify(urls));
   Logger.log('=== test_saveImagesToDrive: ALL PASS ===');
-  Logger.log('※ Drive の「' + PT_DRIVE_FOLDER_NAME + '」フォルダを開いてファイル3つが存在することを目視確認');
+  Logger.log('※ Drive の「' + PT_DRIVE_FOLDER_NAME + '」フォルダを開いてファイル2つが存在することを目視確認');
 }
 
 // ==========================================
-// Gemini OCR呼び出しのテスト（3ページ）
+// Gemini OCR呼び出しのテスト
+// 画像2枚で3ページ分（見開き含む）を検出できるかテスト
 // 事前:
 //   1. GEMINI_API_KEY がスクリプトプロパティに保存されている
 //   2. Drive「BNI-powerteam-images/_test/」に
-//      sample_p3.jpg / sample_p4.jpg / sample_p5.jpg を配置
+//      sample_p3.jpg（p.3+p.4見開き）/ sample_p4.jpg（p.5単独）を配置
+//   3. 画像枚数は2〜3枚可変。3枚目があれば sample_p5.jpg として自動追加
 // ==========================================
 function test_callGeminiOCR() {
   var folder = getPowerTeamFolder_();
@@ -103,19 +103,25 @@ function test_callGeminiOCR() {
 
   var p3Files = testFolder.getFilesByName('sample_p3.jpg');
   var p4Files = testFolder.getFilesByName('sample_p4.jpg');
-  var p5Files = testFolder.getFilesByName('sample_p5.jpg');
   _pt_assertTruthy(p3Files.hasNext(), 'sample_p3.jpg が存在');
   _pt_assertTruthy(p4Files.hasNext(), 'sample_p4.jpg が存在');
-  _pt_assertTruthy(p5Files.hasNext(), 'sample_p5.jpg が存在');
   var p3File = p3Files.next();
   var p4File = p4Files.next();
-  var p5File = p5Files.next();
 
   var images = [
     { base64: Utilities.base64Encode(p3File.getBlob().getBytes()), mime: 'image/jpeg' },
-    { base64: Utilities.base64Encode(p4File.getBlob().getBytes()), mime: 'image/jpeg' },
-    { base64: Utilities.base64Encode(p5File.getBlob().getBytes()), mime: 'image/jpeg' }
+    { base64: Utilities.base64Encode(p4File.getBlob().getBytes()), mime: 'image/jpeg' }
   ];
+
+  // オプション: 3枚目があれば追加
+  var p5Files = testFolder.getFilesByName('sample_p5.jpg');
+  if (p5Files.hasNext()) {
+    var p5File = p5Files.next();
+    images.push({ base64: Utilities.base64Encode(p5File.getBlob().getBytes()), mime: 'image/jpeg' });
+    Logger.log('※ sample_p5.jpg も検出、3枚で実行');
+  } else {
+    Logger.log('※ sample_p5.jpg なし、2枚で実行（AIが1枚から複数ページ抽出）');
+  }
 
   var result = callGeminiOCR_(images);
   Logger.log('Response: ' + JSON.stringify(result, null, 2));
