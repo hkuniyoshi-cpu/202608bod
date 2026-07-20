@@ -94,28 +94,57 @@
 </style>
 
 <script>
-  var PT_BASE = window.location.href.split('?')[0];
+  // Webapp URL をサーバー側から注入（google.script.run では取れない、target=_top ナビ用）
+  var PT_WEBAPP_URL = <?!= JSON.stringify(pt_getWebappUrl()) ?>;
+
+  // ==========================================
+  // 通信：google.script.run を Promise でラップ
+  // GAS iframe は cross-origin のため fetch が使えないので必ずこちら経由
+  // ==========================================
+  function ptRun(fn, arg) {
+    return new Promise(function(resolve, reject) {
+      var runner = google.script.run
+        .withSuccessHandler(resolve)
+        .withFailureHandler(function(err) { reject(new Error(String(err && err.message || err))); });
+      if (arg === undefined) runner[fn]();
+      else runner[fn](arg);
+    });
+  }
 
   function ptGet(action, params) {
-    var qs = 'action=' + encodeURIComponent(action);
-    if (params) {
-      Object.keys(params).forEach(function(k) {
-        qs += '&' + encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
+    if (action === 'powerteam') {
+      return ptRun('pt_api_getConfirmedAll').then(function(items) {
+        return { items: items || [] };
       });
     }
-    return fetch(PT_BASE + '?' + qs).then(function(r) { return r.json(); });
+    if (action === 'powerteam-all') {
+      return ptRun('pt_api_getAllWithDraft').then(function(items) {
+        return { items: items || [] };
+      });
+    }
+    if (action === 'powerteam-one') {
+      return ptRun('pt_api_getOne', (params && params.name) || '').then(function(item) {
+        return item ? { found: true, item: item } : { found: false };
+      });
+    }
+    return Promise.reject(new Error('Unknown ptGet action: ' + action));
   }
 
   function ptPost(action, body) {
-    return fetch(PT_BASE + '?action=' + encodeURIComponent(action), {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(body)
-    }).then(function(r) { return r.json(); });
+    if (action === 'submit') return ptRun('pt_api_submit', body);
+    if (action === 'update') return ptRun('pt_api_update', body);
+    if (action === 'delete') return ptRun('pt_api_delete', body);
+    return Promise.reject(new Error('Unknown ptPost action: ' + action));
   }
 
-  function ptGoto(page) { window.location.href = PT_BASE + '?page=' + page; }
+  function ptGoto(page) {
+    // iframe から親フレームをナビゲート
+    window.top.location.href = PT_WEBAPP_URL + '?page=' + page;
+  }
 
+  // ==========================================
+  // 画像アップロードヘルパー（fetch不使用のため既存のまま）
+  // ==========================================
   function ptFileToBase64(file) {
     return new Promise(function(resolve, reject) {
       var reader = new FileReader();
@@ -181,10 +210,11 @@
   }
 
   function ptNav() {
+    // iframe 内リンクは target=_top で親フレームをナビゲートさせる
     return '<div class="nav">' +
-      '<a class="btn purple" href="' + PT_BASE + '?page=view">🎯 一覧</a>' +
-      '<a class="btn" href="' + PT_BASE + '?page=submit">📄 提出する</a>' +
-      '<a class="btn secondary" href="' + PT_BASE + '?page=edit">✏️ 編集する</a>' +
+      '<a class="btn purple" href="' + PT_WEBAPP_URL + '?page=view" target="_top">🎯 一覧</a>' +
+      '<a class="btn" href="' + PT_WEBAPP_URL + '?page=submit" target="_top">📄 提出する</a>' +
+      '<a class="btn secondary" href="' + PT_WEBAPP_URL + '?page=edit" target="_top">✏️ 編集する</a>' +
       '</div>';
   }
 </script>

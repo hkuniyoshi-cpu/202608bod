@@ -129,7 +129,9 @@
 <script>
   var state = { name: '', imgs: [null, null, null], submissionId: null, fields: null };
   document.getElementById('nav-container').innerHTML = ptNav();
-  document.getElementById('to-view').href = PT_BASE + '?page=view';
+  var toViewLink = document.getElementById('to-view');
+  toViewLink.href = PT_WEBAPP_URL + '?page=view';
+  toViewLink.setAttribute('target', '_top');
 
   function show(id) {
     ['step1','step2','step25','step3','step4'].forEach(function(x) {

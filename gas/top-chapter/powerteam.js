@@ -677,6 +677,41 @@ function pt_renderPage_(pageName) {
     .addMetaTag('viewport', 'width=device-width, initial-scale=1.0');
 }
 
+// include も template として評価（PT_WEBAPP_URL 等の scriptlet を処理するため）
 function pt_include_(filename) {
-  return HtmlService.createHtmlOutputFromFile(filename).getContent();
+  return HtmlService.createTemplateFromFile(filename).evaluate().getContent();
+}
+
+// ==========================================
+// google.script.run から呼ぶ API ラッパー
+// クライアントJS から fetch は cross-origin で使えないため、
+// google.script.run 経由でこれらのラッパーを呼び出す
+// ==========================================
+function pt_api_getConfirmedAll() {
+  return getPowerTeamAll_(false);
+}
+
+function pt_api_getAllWithDraft() {
+  return getPowerTeamAll_(true);
+}
+
+function pt_api_getOne(name) {
+  return getPowerTeamOne_(name);
+}
+
+function pt_api_submit(body) {
+  return pt_handleSubmit_(body);
+}
+
+function pt_api_update(body) {
+  return pt_handleUpdate_(body);
+}
+
+function pt_api_delete(body) {
+  return pt_handleDelete_(body);
+}
+
+// Webapp の公開 URL（テンプレートから呼ぶ）
+function pt_getWebappUrl() {
+  return ScriptApp.getService().getUrl();
 }
