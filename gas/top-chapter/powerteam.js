@@ -97,12 +97,23 @@ var PT_COL_WIDTHS = [
 
 // ==========================================
 // シートセットアップ
+// GASエディタからも、スプレッドシートのメニューからも実行可能
+// （getUi() が使えない場合は Logger 出力にフォールバック）
 // ==========================================
+function _pt_notify(message) {
+  Logger.log(message);
+  try {
+    SpreadsheetApp.getUi().alert(message);
+  } catch (e) {
+    // UI context がない（GASエディタ直接実行等）→ Logger 出力のみで済ませる
+  }
+}
+
 function setupPowerTeamSheet() {
   var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   var existing = ss.getSheetByName(PT_SHEET_NAME);
   if (existing) {
-    SpreadsheetApp.getUi().alert(
+    _pt_notify(
       'シート「' + PT_SHEET_NAME + '」は既に存在します。\n\n' +
       'スキーマ変更後の再作成が必要な場合、まず既存シートを右クリック→削除し、\n' +
       '再度この関数を実行してください。'
@@ -136,7 +147,7 @@ function setupPowerTeamSheet() {
   sheet.getRange(1, 1, 501, PT_HEADERS.length)
     .setBorder(true, true, true, true, true, true);
 
-  SpreadsheetApp.getUi().alert(
+  _pt_notify(
     'シート「' + PT_SHEET_NAME + '」を作成しました（全30列 A-AD）。\n\n' +
     '次のステップ:\n' +
     '- Gemini APIキーがスクリプトプロパティに保存されているか確認\n' +
