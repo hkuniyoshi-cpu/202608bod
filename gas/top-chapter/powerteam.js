@@ -198,10 +198,14 @@ function saveImagesToDrive_(images, submitterName) {
 // ==========================================
 var PT_PROMPT_TEXT =
   'あなたは日本語の手書きワークシートを読み取るOCRアシスタントです。\n' +
-  '2〜3枚の画像はBNIパワーチームワークショップのワークシートです。\n' +
-  '1枚の画像に複数ページが写っている場合もあります（例：ノートの見開きで撮影）。\n' +
-  '合計で3種類のページ（p.3 / p.4 / p.5）を全て検出し、それぞれ抽出してください。\n' +
-  '画像の順序・枚数は不定です。内容から自動判定してください。\n\n' +
+  '3枚の画像はBNIパワーチームワークショップのワークシートです。\n' +
+  '通常、ユーザーは以下の順序で画像をアップロードします（ヒント）：\n' +
+  '  画像1 = 「ターゲット・マーケットワークシート」（前半 p.3）\n' +
+  '  画像2 = 「パワーチームに必要な専門分野」（前半 p.4）\n' +
+  '  画像3 = 「2つの説明文」（後半 p.3）\n' +
+  'ただし、ユーザーが順序を間違える場合や、1枚の画像に複数ページが写っている場合もあります。\n' +
+  '必ず内容から実際のページを判定してください。\n' +
+  '合計で3種類のページ（p.3 / p.4 / p.5）を全て検出・抽出してください。\n\n' +
   '■ p.3「ターゲット・マーケットワークシート」の識別特徴\n' +
   '- タイトルに「ターゲット・マーケットワークシート」\n' +
   '- 【感情的なつながり】【具体的なターゲット】のセクション\n' +
@@ -568,8 +572,9 @@ function deletePowerTeamRow_(submissionId) {
 // ==========================================
 function pt_handleSubmit_(body) {
   if (!body.submitter_name) throw new Error('submitter_name is required');
-  if (!body.image1_base64 || !body.image2_base64) {
-    throw new Error('At least 2 images required (image1, image2). image3 optional.');
+  if (!body.image1_base64 || !body.image2_base64 || !body.image3_base64) {
+    throw new Error('3 images required (image1: p.3 ターゲットマーケット, ' +
+      'image2: p.4 パワーチーム専門, image3: p.5 2つの説明文)');
   }
 
   if (!body.confirm_overwrite) {
@@ -584,11 +589,9 @@ function pt_handleSubmit_(body) {
 
   var images = [
     { base64: body.image1_base64, mime: body.image1_mime || 'image/jpeg' },
-    { base64: body.image2_base64, mime: body.image2_mime || 'image/jpeg' }
+    { base64: body.image2_base64, mime: body.image2_mime || 'image/jpeg' },
+    { base64: body.image3_base64, mime: body.image3_mime || 'image/jpeg' }
   ];
-  if (body.image3_base64) {
-    images.push({ base64: body.image3_base64, mime: body.image3_mime || 'image/jpeg' });
-  }
 
   var urls = saveImagesToDrive_(images, body.submitter_name);
 

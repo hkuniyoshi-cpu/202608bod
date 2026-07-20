@@ -18,12 +18,10 @@
 
   <div id="step2" class="card" style="display:none;">
     <p style="font-size:12px; color:#6B7280; margin:0 0 12px;">
-      ワークシート p.3 / p.4 / p.5 の3ページを撮影してください。<br>
-      見開きで撮って1枚に2ページ写せる場合は2枚、1ページずつなら3枚でOK。<br>
-      順不同・AIが自動でページを判別します。
+      ワークシートは3種類。それぞれ写真を1枚ずつアップロードしてください。
     </p>
     <div class="field">
-      <label>📄 画像 1（必須）</label>
+      <label>① ターゲット・マーケットワークシート <span style="color:#6B7280; font-weight:400;">（前半 p.3）</span></label>
       <div class="file-buttons">
         <label>📷 撮影
           <input type="file" accept="image/*" capture="environment" onchange="handleFile(1, this)">
@@ -35,7 +33,7 @@
       <img id="preview-1" class="thumb" style="display:none; margin-top:8px;">
     </div>
     <div class="field">
-      <label>📄 画像 2（必須）</label>
+      <label>② パワーチームに必要な専門分野 <span style="color:#6B7280; font-weight:400;">（前半 p.4）</span></label>
       <div class="file-buttons">
         <label>📷 撮影
           <input type="file" accept="image/*" capture="environment" onchange="handleFile(2, this)">
@@ -47,7 +45,7 @@
       <img id="preview-2" class="thumb" style="display:none; margin-top:8px;">
     </div>
     <div class="field">
-      <label>📄 画像 3（任意 / 3枚に分けて撮る場合のみ）</label>
+      <label>③ 2つの説明文 <span style="color:#6B7280; font-weight:400;">（後半 p.3）</span></label>
       <div class="file-buttons">
         <label>📷 撮影
           <input type="file" accept="image/*" capture="environment" onchange="handleFile(3, this)">
@@ -169,8 +167,8 @@
   }
 
   function updateSubmitBtn() {
-    // 最低2枚必須、3枚目は任意
-    document.getElementById('submit-btn').disabled = !(state.imgs[0] && state.imgs[1]);
+    // 3枚とも必須
+    document.getElementById('submit-btn').disabled = !(state.imgs[0] && state.imgs[1] && state.imgs[2]);
   }
 
   async function doSubmit(confirmOverwrite) {
@@ -184,12 +182,9 @@
         submitter_name: state.name,
         image1_base64: state.imgs[0].base64, image1_mime: state.imgs[0].mime,
         image2_base64: state.imgs[1].base64, image2_mime: state.imgs[1].mime,
+        image3_base64: state.imgs[2].base64, image3_mime: state.imgs[2].mime,
         confirm_overwrite: !!confirmOverwrite
       };
-      if (state.imgs[2]) {
-        body.image3_base64 = state.imgs[2].base64;
-        body.image3_mime = state.imgs[2].mime;
-      }
       var res = await ptPost('submit', body);
       if (res.needsConfirm) {
         if (confirm(res.message)) return doSubmit(true);
