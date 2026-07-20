@@ -20,16 +20,20 @@
 <meta name="twitter:image" content="https://202608bod.search-mania.net/og-image.jpg">
 <link rel="icon" type="image/png" href="favicon.png">
 <link rel="apple-touch-icon" href="favicon.png">
+<!-- Cloudflare Turnstile（Botチャレンジ） -->
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 <!-- ══ SECURITY META HEADERS ══ -->
 <meta http-equiv="Content-Security-Policy"
   content="default-src 'self';
-           script-src 'self' 'unsafe-inline';
+           script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com;
            style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
            font-src https://fonts.gstatic.com;
            img-src 'self' data: https:;
            frame-src https://maps.google.com https://www.google.com
-                     https://script.google.com https://script.googleusercontent.com;
-           connect-src 'self' https://script.google.com https://script.googleusercontent.com;">
+                     https://script.google.com https://script.googleusercontent.com
+                     https://challenges.cloudflare.com;
+           connect-src 'self' https://script.google.com https://script.googleusercontent.com
+                     https://challenges.cloudflare.com;">
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=()">
 <meta name="referrer" content="strict-origin-when-cross-origin">
@@ -2376,12 +2380,20 @@ a { color: inherit; text-decoration: none; }
           </div>
 
           <div class="form-submit">
+            <!-- Cloudflare Turnstile ボット検証 -->
+            <div class="cf-turnstile"
+                 data-sitekey="0x4AAAAAAD52CoudEjEV6m-7"
+                 data-theme="light"
+                 data-size="normal"
+                 style="margin: 0 auto 20px; display: flex; justify-content: center;"></div>
+
             <button type="submit" class="btn btn-red" id="submit-btn">
               申込みを送信する
             </button>
             <p class="form-privacy">
               送信後、確認メールをお送りします（info@search-mania.net より）<br>
-              送信いただいた情報はイベント運営のみに使用し、第三者へ提供しません。
+              送信いただいた情報はイベント運営のみに使用し、第三者へ提供しません。<br>
+              <small style="color:var(--text-l);font-size:11px;">Protected by Cloudflare Turnstile</small>
             </p>
           </div>
 
@@ -2816,7 +2828,15 @@ function handleSubmit(e) {
     return;
   }
 
-  /* ⑥ 送信処理 */
+  /* ⑥ Turnstile トークン確認（クライアント側） */
+  const tsToken = form.elements['cf-turnstile-response'];
+  if (!tsToken || !tsToken.value) {
+    e.preventDefault();
+    alert('セキュリティチェックが完了していません。少々お待ちください。');
+    return;
+  }
+
+  /* ⑦ 送信処理 */
   btn.disabled    = true;
   btn.textContent = '送信中...';
 

@@ -50,6 +50,46 @@ const HEADERS = [
 ];
 
 // ----------------------------------------------------------------
+// Cloudflare Turnstile 検証
+// ----------------------------------------------------------------
+// ⚠️ Secret Key はスクリプトプロパティに保存してください:
+//    GASエディタ → プロジェクト設定（歯車） → スクリプトプロパティ
+//    プロパティ: TURNSTILE_SECRET_KEY
+//    値: 0x4AAAAAA...（CloudflareのTurnstileダッシュボードで取得）
+// ----------------------------------------------------------------
+function verifyTurnstile(token) {
+  if (!token) return false;
+
+  const secret = PropertiesService.getScriptProperties().getProperty('TURNSTILE_SECRET_KEY');
+  if (!secret) {
+    console.error('[turnstile] TURNSTILE_SECRET_KEY not set in Script Properties');
+    return false;   // フェイルクローズ（未設定なら拒否）
+  }
+
+  try {
+    const response = UrlFetchApp.fetch(
+      'https://challenges.cloudflare.com/turnstile/v0/siteverify',
+      {
+        method: 'post',
+        payload: {
+          secret: secret,
+          response: token,
+        },
+        muteHttpExceptions: true,
+      }
+    );
+    const result = JSON.parse(response.getContentText());
+    if (!result.success) {
+      console.warn('[turnstile] verification failed:', result['error-codes']);
+    }
+    return result.success === true;
+  } catch (err) {
+    console.error('[turnstile] verify error:', err);
+    return false;
+  }
+}
+
+// ----------------------------------------------------------------
 // バリデーション & 検証ユーティリティ
 // ----------------------------------------------------------------
 const DISPOSABLE_DOMAINS = [
@@ -110,6 +150,16 @@ function isDuplicate(sheet, email) {
 function doPost(e) {
   try {
     const p = e.parameter;
+
+    // ─── ⓪ Cloudflare Turnstile トークン検証 ────────
+    const tsToken = p['cf-turnstile-response'];
+    if (!verifyTurnstile(tsToken)) {
+      console.warn('[turnstile] blocked submission from:', p.email);
+      // Botには「エラー」ではなく静かに拒否
+      return HtmlService.createHtmlOutput(
+        '<script>window.parent.postMessage("bni_error","*");</script>'
+      );
+    }
 
     // ─── ① サーバー側バリデーション ─────────────────
     const validationError = validate(p);
