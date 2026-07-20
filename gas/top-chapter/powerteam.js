@@ -16,9 +16,12 @@ var PT_SHEET_NAME = 'パワーチーム提出';
 var PT_DRIVE_FOLDER_NAME = 'BNI-powerteam-images';
 
 // Geminiモデル（フォールバック順）: 最初のモデルが503等で全リトライ失敗した場合、次のモデルを試行
+// 2026-07-20時点で 3.5-flash に高負荷状態が多いため 2.5-flash を優先。
+// 将来 3.5-flash が安定化したら順序を戻す（コメント参照）
 var PT_MODELS = [
-  'gemini-3.5-flash',      // 推奨（2026年5月GA、シャットダウン予定なし）
-  'gemini-2.5-flash'       // フォールバック（2026-10-16 シャットダウン予定だがそれまで安定）
+  'gemini-2.5-flash',      // 現時点で稼働率が高い（2026-10-16まで安定）
+  'gemini-3.5-flash',      // 通常推奨だが 503 多発中（回復したら1番目に戻す）
+  'gemini-2.5-pro'         // 最終フォールバック（能力高、コスト高だが可用性◎）
 ];
 var PT_GEMINI_ENDPOINT_TMPL =
   'https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent';
@@ -715,4 +718,74 @@ function pt_api_delete(body) {
 // Webapp の公開 URL（テンプレートから呼ぶ）
 function pt_getWebappUrl() {
   return ScriptApp.getService().getUrl();
+}
+
+// ==========================================
+// AI再書き起こし（Gemini失敗時のリトライ用）
+// 既存行の image_*_url を Drive から取得しGemini再実行、行を更新
+// ==========================================
+function pt_api_retryOcr(submissionId) {
+  var sheet = _pt_getSheet();
+  var row = null;
+  var rowIndex = -1;
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) throw new Error('データなし');
+  var rows = sheet.getRange(2, 1, lastRow - 1, PT_HEADERS.length).getValues();
+  var i;
+  for (i = 0; i < rows.length; i++) {
+    if (String(rows[i][PT_COL.submission_id - 1]) === String(submissionId)) {
+      row = _pt_rowToObject(rows[i]);
+      rowIndex = i + 2;
+      break;
+    }
+  }
+  if (!row) throw new Error('submission_id が見つからない: ' + submissionId);
+
+  var urls = [row.image_1_url, row.image_2_url, row.image_3_url].filter(function(u) { return !!u; });
+  if (urls.length < 2) throw new Error('画像URL不足（' + urls.length + '枚）。再提出が必要');
+
+  // Drive から画像を再取得
+  var images = urls.map(function(url) {
+    // URL形式: https://lh3.googleusercontent.com/d/FILE_ID=w1600
+    var m = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+    if (!m) throw new Error('画像URLからファイルID抽出失敗: ' + url);
+    var file = DriveApp.getFileById(m[1]);
+    return {
+      base64: Utilities.base64Encode(file.getBlob().getBytes()),
+      mime: 'image/jpeg'
+    };
+  });
+
+  // Gemini 再呼び出し
+  var ocr = callGeminiOCR_(images);
+  var p3 = ocr.p3_page || {};
+  var p4 = ocr.p4_page || {};
+  var p5 = ocr.p5_page || {};
+
+  // フィールド更新（画像URLは触らない、統計項目のみ更新）
+  var fields = {
+    powerteam_name: p4.powerteam_name || row.powerteam_name || '',
+    mission: p4.mission || row.mission || '',
+    self_specialty: p4.self_specialty || row.self_specialty || '',
+    target: p4.target || row.target || '',
+    specialty_1: p4.specialty_1 || row.specialty_1 || '',
+    specialty_2: p4.specialty_2 || row.specialty_2 || '',
+    specialty_3: p4.specialty_3 || row.specialty_3 || '',
+    specialty_4: p4.specialty_4 || row.specialty_4 || '',
+    specialty_5: p4.specialty_5 || row.specialty_5 || '',
+    specialty_6: p4.specialty_6 || row.specialty_6 || '',
+    specialty_7: p4.specialty_7 || row.specialty_7 || '',
+    additional_specialties: p4.additional_specialties || row.additional_specialties || [],
+    emotional_why: p3.emotional_why || row.emotional_why || '',
+    emotional_joys: p3.emotional_joys || row.emotional_joys || '',
+    target_needs: p3.target_needs || row.target_needs || '',
+    target_definition: p3.target_definition || row.target_definition || '',
+    mission_reason: p5.mission_reason || row.mission_reason || '',
+    introduction_script: p5.introduction_script || row.introduction_script || '',
+    p3_raw_text: p3.raw_text || '',
+    p4_raw_text: p4.raw_text || '',
+    p5_raw_text: p5.raw_text || ''
+  };
+  updatePowerTeamRow_(submissionId, fields);
+  return { ok: true, fields: fields, warnings: ocr.warnings || [] };
 }

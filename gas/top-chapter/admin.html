@@ -37,13 +37,18 @@
     items.forEach(function(m) {
       var bg = m.status === 'draft' ? '#FEF3C7' :
                m.status === 'deleted' ? '#FEE2E2' : '#FFF';
+      // ミッションが空なら Gemini失敗の可能性 → 再書き起こしボタン表示
+      var missionEmpty = !m.mission || !m.mission.trim();
       html += '<tr style="background:' + bg + '; border-bottom:1px solid #E5E7EB;">' +
         '<td style="padding:6px;">' + ptEscapeHtml(m.submitter_name) + '</td>' +
         '<td style="padding:6px;">' + ptEscapeHtml(m.powerteam_name || '-') + '</td>' +
         '<td style="padding:6px; text-align:center;">' + m.status + '</td>' +
         '<td style="padding:6px; font-size:11px;">' + m.submitted_at + '</td>' +
         '<td style="padding:6px; font-size:11px;">' + m.updated_at + '</td>' +
-        '<td style="padding:6px;">' +
+        '<td style="padding:6px; white-space:nowrap;">' +
+          (missionEmpty && m.status !== 'deleted'
+            ? '<button class="btn" style="padding:4px 8px; font-size:11px; background:#F59E0B;" onclick="doRetryOcr(\'' + m.submission_id + '\', \'' + ptEscapeHtml(m.submitter_name) + '\')">🔄 AI再書起</button> '
+            : '') +
           (m.status !== 'confirmed'
             ? '<button class="btn purple" style="padding:4px 8px; font-size:11px;" onclick="doConfirm(\'' + m.submission_id + '\')">確定</button> '
             : '') +
@@ -70,6 +75,22 @@
   async function doRestore(id) {
     await ptPost('update', { submission_id: id, status: 'confirmed' });
     load();
+  }
+
+  async function doRetryOcr(id, name) {
+    if (!confirm(name + 'さんの提出を Gemini で再書き起こしします（30秒〜1分）。よろしいですか？')) return;
+    var btn = event.target;
+    btn.disabled = true;
+    btn.textContent = '処理中…';
+    try {
+      var res = await ptRun('pt_api_retryOcr', id);
+      alert('AI再書き起こし成功。\nミッション: ' + (res.fields.mission || '(空)').substring(0, 50));
+      load();
+    } catch (e) {
+      alert('AI再書き起こし失敗: ' + e.message + '\n\nGeminiがまだ高負荷の可能性。少し時間を置いて再試行してください。');
+      btn.disabled = false;
+      btn.textContent = '🔄 AI再書起';
+    }
   }
 
   load();
