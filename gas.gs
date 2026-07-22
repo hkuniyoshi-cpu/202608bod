@@ -102,6 +102,30 @@ const REQUIRED_FIELDS = ['name','nameKana','company','companyKana',
 const MAX_FIELD_LEN = 200;
 const DUPLICATE_WINDOW_MIN = 10;   // 同メール10分以内の再送はブロック
 
+// 業種の有効な選択肢（HTMLのselectと同じ）
+const VALID_INDUSTRIES = [
+  '建設・工事・リフォーム','不動産・住宅','保険・金融・ファイナンス',
+  'IT・デジタル・Web','広告・デザイン・印刷','飲食・フード・ケータリング',
+  '美容・サロン・ウェルネス','医療・歯科・整骨院','法律・行政書士・司法書士',
+  '会計・税理士・経営コンサル','教育・コーチング・研修','観光・宿泊・旅行',
+  '小売・EC・通販','製造・加工','運送・物流・倉庫','農業・水産・畜産','その他',
+];
+const VALID_AFTERPARTY = ['参加する','不参加'];
+const VALID_AUTHORITY = [
+  'あり（自身で判断・契約できる）',
+  '要相談（社内相談・持ち帰り前提）',
+];
+const VALID_SURVEYS = [
+  'A：BNI入会を前向きに検討している',
+  'B：人脈・ビジネス機会を広げる方法を探している',
+  'C：とりあえず見学・雰囲気を体感したい',
+];
+
+// 日本人の名前らしいか（ひらがな/カタカナ/漢字を含むかチェック）
+function containsJapanese(str) {
+  return /[぀-ゟ゠-ヿ一-鿿]/.test(String(str));
+}
+
 function validate(p) {
   // 必須チェック
   for (const f of REQUIRED_FIELDS) {
@@ -115,6 +139,30 @@ function validate(p) {
       return `入力値が長すぎます: ${key}`;
     }
   }
+
+  // 業種：select初期値・不正値を拒否（"選択してください" 等）
+  if (VALID_INDUSTRIES.indexOf(String(p.industry).trim()) === -1) {
+    return `業種の選択が不正です: ${p.industry}`;
+  }
+  // 懇親会
+  if (VALID_AFTERPARTY.indexOf(String(p.afterparty).trim()) === -1) {
+    return `懇親会の選択が不正です`;
+  }
+  // 決裁権
+  if (VALID_AUTHORITY.indexOf(String(p.authority).trim()) === -1) {
+    return `決裁権の選択が不正です`;
+  }
+  // アンケート
+  if (VALID_SURVEYS.indexOf(String(p.survey).trim()) === -1) {
+    return `参加目的の選択が不正です`;
+  }
+
+  // 日本語文字を必ず含む（Botのランダム英字を弾く）
+  if (!containsJapanese(p.name) || !containsJapanese(p.nameKana) ||
+      !containsJapanese(p.company) || !containsJapanese(p.companyKana)) {
+    return '氏名・会社名は日本語で入力してください';
+  }
+
   // メール形式チェック
   const email = String(p.email).trim();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
@@ -410,4 +458,53 @@ function doGet() {
   return HtmlService.createHtmlOutput(
     '<h2>BNI ビジネスオープンデー 2026 申込みフォーム API — 稼働中 ✓</h2>'
   );
+}
+
+// ================================================================
+// 【手動実行】スパム行を一括削除
+// ================================================================
+// 使い方: GASエディタで cleanSpamRows() を選択して▶実行
+// 条件（いずれか1つでも当てはまれば削除対象）:
+//   - 業種が「選択してください」または VALID_INDUSTRIES に含まれない
+//   - 氏名/フリガナ/会社名/会社名フリガナ に日本語文字が含まれない
+// ================================================================
+function cleanSpamRows() {
+  const ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const sheet = ss.getSheetByName(SHEET_NAME);
+  if (!sheet) { Logger.log('シートが見つかりません'); return; }
+
+  const rows = sheet.getDataRange().getValues();
+  const toDelete = [];
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    const name = row[1], nameKana = row[2], company = row[3], companyKana = row[4];
+    const industry = row[5];
+
+    const badIndustry = VALID_INDUSTRIES.indexOf(String(industry).trim()) === -1;
+    const badJapanese = !containsJapanese(name) || !containsJapanese(nameKana) ||
+                        !containsJapanese(company) || !containsJapanese(companyKana);
+
+    if (badIndustry || badJapanese) {
+      toDelete.push(i + 1); // 1-indexed
+    }
+  }
+
+  // 後ろから削除（インデックスがずれないように）
+  for (let i = toDelete.length - 1; i >= 0; i--) {
+    sheet.deleteRow(toDelete[i]);
+  }
+
+  Logger.log(`✅ ${toDelete.length}件のスパム行を削除しました`);
+  Browser.msgBox(`${toDelete.length}件のスパム行を削除しました。`);
+}
+
+// ================================================================
+// 【手動実行】直近の投稿を確認（デバッグ用）
+// ================================================================
+function inspectRecentSubmissions() {
+  const sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(SHEET_NAME);
+  const rows = sheet.getDataRange().getValues();
+  const recent = rows.slice(Math.max(1, rows.length - 10));
+  Logger.log('直近10件:');
+  recent.forEach(r => Logger.log(`${r[0]} | ${r[1]} | ${r[5]} | ${r[7]}`));
 }
