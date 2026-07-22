@@ -101,7 +101,7 @@ const REQUIRED_FIELDS = ['name','nameKana','company','companyKana',
                          'industry','referrer','email','phone',
                          'afterparty','authority','survey'];
 const MAX_FIELD_LEN = 200;
-const DUPLICATE_WINDOW_MIN = 2;    // 同メール2分以内の再送はブロック（テスト容易化）
+// 重複判定は時間窓なし（メール＋氏名 完全一致なら永久ブロック）
 
 // 業種の有効な選択肢（HTMLのselectと同じ）
 const VALID_INDUSTRIES = [
@@ -188,15 +188,13 @@ function validate(p) {
 }
 
 function isDuplicate(sheet, email, name) {
-  // メール＋氏名の両方が一致するときのみ重複と判定
-  // （同じメールで複数名を申し込むケースを許容するため）
+  // メール＋氏名の両方が一致するときは重複と判定（時間窓なし・全行チェック）
+  // 同じメールで別の氏名なら別人として許可される
   const rows = sheet.getDataRange().getValues();
-  const threshold = new Date().getTime() - DUPLICATE_WINDOW_MIN * 60 * 1000;
-  for (let i = rows.length - 1; i >= 1 && i >= rows.length - 20; i--) {
+  for (let i = 1; i < rows.length; i++) {
     const rowName  = String(rows[i][1] || '').trim();
     const rowEmail = String(rows[i][7] || '').trim();
-    const rowTime  = new Date(rows[i][0]).getTime();
-    if (rowEmail === email && rowName === name && rowTime > threshold) return true;
+    if (rowEmail === email && rowName === name) return true;
   }
   return false;
 }
