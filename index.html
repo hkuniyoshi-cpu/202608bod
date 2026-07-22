@@ -2748,16 +2748,8 @@ window.addEventListener('scroll', onScroll, { passive: true });
 
 
 /* ─── 8. FORM SECURITY — 多層防御 ─────────────────────── */
-let _lastSubmitTime = 0;
-let _formOpenedAt   = 0;                       // 時間トラップ用
-const MIN_FILL_MS   = 3500;                    // 3.5秒未満で送信 → Bot判定
-const RATE_LIMIT_MS = 4000;
-
-/* フォームモーダルが開かれた瞬間のタイムスタンプを保存 */
-document.addEventListener('click', (e) => {
-  const trigger = e.target.closest('[href="#form"], .form-open-btn');
-  if (trigger) _formOpenedAt = Date.now();
-}, true);
+/* 同じ人が続けて別人を申込むケースに対応するため、
+   時間トラップ・レート制限は撤廃。Bot対策は Turnstile + サーバー検証で担保。 */
 
 /* メールアドレスの追加検証（構文＋捨てメアド簡易ブロック） */
 const DISPOSABLE_EMAIL_DOMAINS = [
@@ -2797,24 +2789,7 @@ function handleSubmit(e) {
     return;
   }
 
-  /* ③ 時間トラップ — 3.5秒未満で送信 → Bot判定 */
-  const now  = Date.now();
-  const elapsed = _formOpenedAt ? now - _formOpenedAt : Infinity;
-  if (elapsed < MIN_FILL_MS) {
-    e.preventDefault();
-    console.warn('[security] time-trap triggered:', elapsed, 'ms');
-    // 意図的にエラー表示しない（Botに情報を渡さない）
-    return;
-  }
-
-  /* ④ レートリミット — 4秒以内の二重送信を防止 */
-  if (now - _lastSubmitTime < RATE_LIMIT_MS) {
-    e.preventDefault();
-    return;
-  }
-  _lastSubmitTime = now;
-
-  /* ⑤ メール・電話番号のクライアント検証 */
+  /* ③ メール・電話番号のクライアント検証 */
   const email = form.elements['email'].value.trim();
   const phone = form.elements['phone'].value.trim();
   if (!isValidEmail(email)) {
@@ -2828,7 +2803,7 @@ function handleSubmit(e) {
     return;
   }
 
-  /* ⑥ Turnstile トークン確認（クライアント側） */
+  /* ④ Turnstile トークン確認（クライアント側） */
   const tsToken = form.elements['cf-turnstile-response'];
   if (!tsToken || !tsToken.value) {
     e.preventDefault();
@@ -2836,7 +2811,7 @@ function handleSubmit(e) {
     return;
   }
 
-  /* ⑦ 送信処理 */
+  /* ⑤ 送信処理 */
   btn.disabled    = true;
   btn.textContent = '送信中...';
   window._resolved = false;

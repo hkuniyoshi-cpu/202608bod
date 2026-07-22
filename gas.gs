@@ -187,13 +187,16 @@ function validate(p) {
   return null; // OK
 }
 
-function isDuplicate(sheet, email) {
+function isDuplicate(sheet, email, name) {
+  // メール＋氏名の両方が一致するときのみ重複と判定
+  // （同じメールで複数名を申し込むケースを許容するため）
   const rows = sheet.getDataRange().getValues();
   const threshold = new Date().getTime() - DUPLICATE_WINDOW_MIN * 60 * 1000;
   for (let i = rows.length - 1; i >= 1 && i >= rows.length - 20; i--) {
-    const rowEmail = rows[i][7];
+    const rowName  = String(rows[i][1] || '').trim();
+    const rowEmail = String(rows[i][7] || '').trim();
     const rowTime  = new Date(rows[i][0]).getTime();
-    if (rowEmail === email && rowTime > threshold) return true;
+    if (rowEmail === email && rowName === name && rowTime > threshold) return true;
   }
   return false;
 }
@@ -241,8 +244,8 @@ function doPost(e) {
       sheet.setFrozenRows(1);
     }
 
-    // ─── ② 重複送信チェック（同メール2分以内） ─────
-    if (isDuplicate(sheet, String(p.email).trim())) {
+    // ─── ② 重複送信チェック（同メール＋同氏名 2分以内） ─────
+    if (isDuplicate(sheet, String(p.email).trim(), String(p.name).trim())) {
       console.warn('[duplicate] blocked:', p.email);
       // 重複を明示的にクライアントへ通知（ユーザー向けの注意メッセージ表示用）
       return HtmlService.createHtmlOutput(
