@@ -2203,9 +2203,6 @@ a { color: inherit; text-decoration: none; }
   </div>
 </section>
 
-<!-- Hidden iframe for GAS form submission -->
-<iframe name="result-frame" id="result-frame" style="display:none;" title="送信結果"></iframe>
-
 
 <!-- ══════════════════════════════════════════════════════
      FORM MODAL — 申込みフォーム
@@ -2224,7 +2221,7 @@ a { color: inherit; text-decoration: none; }
 
     <div id="form-body">
       <form id="apply-form"
-            action="https://script.google.com/macros/s/AKfycbwUSUfiXBROb2KIVVq3ZwebfjMkjLicIkQNVBjth_BVTyb60nDOzWSHxV98zczL7h2hgA/exec" method="POST" target="result-frame"
+            action="https://script.google.com/macros/s/AKfycbwUSUfiXBROb2KIVVq3ZwebfjMkjLicIkQNVBjth_BVTyb60nDOzWSHxV98zczL7h2hgA/exec" method="POST"
             onsubmit="handleSubmit(event)" autocomplete="on">
         <!-- ボット対策ハニーポット -->
         <div class="hp-field" aria-hidden="true">
@@ -2780,13 +2777,13 @@ function isValidPhone(phone) {
   return digits.length >= 10 && digits.length <= 11;
 }
 
-function handleSubmit(e) {
+async function handleSubmit(e) {
+  e.preventDefault();     // 常に既定送信を止めて fetch で送る
   const form = e.target;
   const btn  = document.getElementById('submit-btn');
 
   /* ① GAS URL 未設定チェック */
   if (!form.action || form.action.includes('YOUR_GAS_URL')) {
-    e.preventDefault();
     alert('⚠️ GAS URLが設定されていません。');
     return;
   }
@@ -2794,7 +2791,6 @@ function handleSubmit(e) {
   /* ② ハニーポット — Botが入力した場合は静かにブロック */
   const hp = form.elements['_hp'];
   if (hp && hp.value.length > 0) {
-    e.preventDefault();
     console.warn('[security] honeypot triggered');
     return;
   }
@@ -2803,15 +2799,12 @@ function handleSubmit(e) {
   const now  = Date.now();
   const elapsed = _formOpenedAt ? now - _formOpenedAt : Infinity;
   if (elapsed < MIN_FILL_MS) {
-    e.preventDefault();
     console.warn('[security] time-trap triggered:', elapsed, 'ms');
-    // 意図的にエラー表示しない（Botに情報を渡さない）
     return;
   }
 
   /* ④ レートリミット — 4秒以内の二重送信を防止 */
   if (now - _lastSubmitTime < RATE_LIMIT_MS) {
-    e.preventDefault();
     return;
   }
   _lastSubmitTime = now;
@@ -2819,13 +2812,12 @@ function handleSubmit(e) {
   /* ⑤ メール・電話番号のクライアント検証 */
   const email = form.elements['email'].value.trim();
   const phone = form.elements['phone'].value.trim();
+  const name  = form.elements['name'].value.trim();
   if (!isValidEmail(email)) {
-    e.preventDefault();
     alert('メールアドレスの形式をご確認ください。');
     return;
   }
   if (!isValidPhone(phone)) {
-    e.preventDefault();
     alert('電話番号は10〜11桁の半角数字でご入力ください。');
     return;
   }
@@ -2833,38 +2825,37 @@ function handleSubmit(e) {
   /* ⑥ Turnstile トークン確認（クライアント側） */
   const tsToken = form.elements['cf-turnstile-response'];
   if (!tsToken || !tsToken.value) {
-    e.preventDefault();
     alert('セキュリティチェックが完了していません。少々お待ちください。');
     return;
   }
 
-  /* ⑦ 送信処理 */
+  /* ⑦ ローカルストレージによる二重送信の即時ブロック（UX向上） */
+  const dupKey = `bod2026_dup_${email}_${name}`;
+  if (localStorage.getItem(dupKey)) {
+    showDuplicate();
+    return;
+  }
+
+  /* ⑧ fetch で送信 — iframe の X-Frame-Options 制約を回避 */
   btn.disabled    = true;
   btn.textContent = '送信中...';
-  window._resolved = false;
 
-  // postMessage の bni_success/bni_error/bni_duplicate のみを信じる
-  // 15秒間応答がなければエラー扱い
-  window._submitTimeout = setTimeout(() => {
-    if (!window._resolved) {
-      window._resolved = true;
-      console.warn('[form] no response within 15s');
-      showError();
-    }
-  }, 15000);
+  try {
+    const formData = new FormData(form);
+    await fetch(form.action, {
+      method: 'POST',
+      body: formData,
+      mode: 'no-cors',
+    });
+    // GAS の処理完了を少し待つ（バックエンドで保存＋メール送信）
+    await new Promise(r => setTimeout(r, 800));
+    localStorage.setItem(dupKey, Date.now().toString());
+    showSuccess();
+  } catch (err) {
+    console.error('[form] fetch error:', err);
+    showError();
+  }
 }
-
-/* GAS からの postMessage で結果を検知 */
-window.addEventListener('message', (e) => {
-  /* origin チェック: GAS ドメインのみ受け付ける */
-  if (!e.origin.includes('script.google')) return;
-  if (window._submitTimeout) { clearTimeout(window._submitTimeout); window._submitTimeout = null; }
-  if (window._resolved) return;
-  window._resolved = true;
-  if (e.data === 'bni_success')   showSuccess();
-  if (e.data === 'bni_error')     showError();
-  if (e.data === 'bni_duplicate') showDuplicate();
-});
 
 function showSuccess() {
   document.getElementById('form-body').style.display = 'none';
