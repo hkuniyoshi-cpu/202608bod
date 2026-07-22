@@ -2839,23 +2839,10 @@ function handleSubmit(e) {
   /* ⑦ 送信処理 */
   btn.disabled    = true;
   btn.textContent = '送信中...';
-
-  // 優先: postMessage の bni_success/bni_error を信じる
-  // フォールバック: iframeロード完了後3秒待って postMessage 来なければ成功扱い
-  //                （GAS の一部レスポンスで postMessage が発火しないケース対策）
   window._resolved = false;
-  const iframe = document.getElementById('result-frame');
-  iframe.addEventListener('load', () => {
-    if (window._resolved) return;
-    setTimeout(() => {
-      if (!window._resolved) {
-        window._resolved = true;
-        showSuccess();
-      }
-    }, 3000);
-  }, { once: true });
 
-  // 最終保険：15秒経ってもiframe.load すら来なければエラー
+  // postMessage の bni_success/bni_error/bni_duplicate のみを信じる
+  // 15秒間応答がなければエラー扱い
   window._submitTimeout = setTimeout(() => {
     if (!window._resolved) {
       window._resolved = true;
@@ -2882,6 +2869,10 @@ function showSuccess() {
   const s = document.getElementById('form-success');
   s.classList.add('show');
   s.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  // Turnstile を次回に備えてリセット（トークンは単回使用のため）
+  if (window.turnstile) {
+    try { window.turnstile.reset(); } catch(e) {}
+  }
 }
 
 function showError() {
