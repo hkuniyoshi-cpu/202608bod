@@ -25,7 +25,9 @@
 <!-- ══ SECURITY META HEADERS ══ -->
 <meta http-equiv="Content-Security-Policy"
   content="default-src 'self';
-           script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com;
+           script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com
+                     https://script.google.com https://script.googleusercontent.com
+                     https://*.googleusercontent.com;
            style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
            font-src https://fonts.gstatic.com;
            img-src 'self' data: https:;
@@ -2829,17 +2831,29 @@ async function handleSubmit(e) {
     return;
   }
 
-  /* ⑦ ローカルストレージによる二重送信の即時ブロック（UX向上） */
+  /* ⑦ ローカルストレージ or サーバーへの JSONP 事前重複チェック */
   const dupKey = `bod2026_dup_${email}_${name}`;
+  btn.disabled    = true;
+  btn.textContent = '確認中...';
+
   if (localStorage.getItem(dupKey)) {
     showDuplicate();
     return;
   }
+  try {
+    const isDup = await checkDuplicateJSONP(email, name);
+    if (isDup) {
+      localStorage.setItem(dupKey, Date.now().toString());
+      showDuplicate();
+      return;
+    }
+  } catch (err) {
+    console.warn('[dup-check] failed, proceeding anyway:', err);
+    // 重複チェック失敗時はスキップして送信続行（サーバー側でも再チェック）
+  }
 
   /* ⑧ fetch で送信 — iframe の X-Frame-Options 制約を回避 */
-  btn.disabled    = true;
   btn.textContent = '送信中...';
-
   try {
     const formData = new FormData(form);
     await fetch(form.action, {
@@ -2855,6 +2869,35 @@ async function handleSubmit(e) {
     console.error('[form] fetch error:', err);
     showError();
   }
+}
+
+/* JSONP で GAS の doGet を叩き、重複判定を取得する */
+function checkDuplicateJSONP(email, name) {
+  return new Promise((resolve, reject) => {
+    const cbName = 'bodDupCb_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
+    const timeoutId = setTimeout(() => {
+      cleanup();
+      reject(new Error('JSONP timeout'));
+    }, 8000);
+
+    function cleanup() {
+      clearTimeout(timeoutId);
+      try { delete window[cbName]; } catch (_) { window[cbName] = undefined; }
+      if (script && script.parentNode) script.parentNode.removeChild(script);
+    }
+
+    window[cbName] = (data) => {
+      cleanup();
+      resolve(!!(data && data.duplicate));
+    };
+
+    const gasUrl = document.getElementById('apply-form').action;
+    const url = `${gasUrl}?check=1&email=${encodeURIComponent(email)}&name=${encodeURIComponent(name)}&cb=${cbName}`;
+    const script = document.createElement('script');
+    script.src = url;
+    script.onerror = () => { cleanup(); reject(new Error('JSONP script load failed')); };
+    document.body.appendChild(script);
+  });
 }
 
 function showSuccess() {

@@ -461,7 +461,29 @@ Mail: ${FROM_EMAIL}
 // ----------------------------------------------------------------
 // doGet — 動作確認用
 // ----------------------------------------------------------------
-function doGet() {
+function doGet(e) {
+  // JSONP による重複事前チェック
+  //   ?check=1&email=xxx&name=yyy&cb=callbackFunctionName
+  if (e && e.parameter && e.parameter.check === '1') {
+    const email = String(e.parameter.email || '').trim();
+    const name  = String(e.parameter.name  || '').trim();
+    const cb    = String(e.parameter.cb    || 'callback').replace(/[^a-zA-Z0-9_]/g, '');
+
+    let isDup = false;
+    try {
+      const sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(SHEET_NAME);
+      if (sheet && email && name) {
+        isDup = isDuplicate(sheet, email, name);
+      }
+    } catch (err) {
+      console.error('[dup-check]', err);
+    }
+
+    return ContentService
+      .createTextOutput(`${cb}(${JSON.stringify({duplicate: isDup})})`)
+      .setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
+
   return HtmlService.createHtmlOutput(
     '<h2>BNI ビジネスオープンデー 2026 申込みフォーム API — 稼働中 ✓</h2>'
   );
