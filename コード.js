@@ -100,7 +100,7 @@ const DISPOSABLE_DOMAINS = [
 const REQUIRED_FIELDS = ['name','nameKana','company','companyKana',
                          'industry','email','phone','afterparty','authority','survey'];
 const MAX_FIELD_LEN = 200;
-const DUPLICATE_WINDOW_MIN = 10;   // 同メール10分以内の再送はブロック
+const DUPLICATE_WINDOW_MIN = 2;    // 同メール2分以内の再送はブロック（テスト容易化）
 
 // 業種の有効な選択肢（HTMLのselectと同じ）
 const VALID_INDUSTRIES = [

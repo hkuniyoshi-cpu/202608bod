@@ -2840,11 +2840,28 @@ function handleSubmit(e) {
   btn.disabled    = true;
   btn.textContent = '送信中...';
 
-  // iframeロードでは成功と判断しない（postMessage の bni_success/bni_error のみを信じる）
-  // タイムアウト保険：15秒応答なしならエラー表示
+  // 優先: postMessage の bni_success/bni_error を信じる
+  // フォールバック: iframeロード完了後3秒待って postMessage 来なければ成功扱い
+  //                （GAS の一部レスポンスで postMessage が発火しないケース対策）
+  window._resolved = false;
+  const iframe = document.getElementById('result-frame');
+  iframe.addEventListener('load', () => {
+    if (window._resolved) return;
+    setTimeout(() => {
+      if (!window._resolved) {
+        window._resolved = true;
+        showSuccess();
+      }
+    }, 3000);
+  }, { once: true });
+
+  // 最終保険：15秒経ってもiframe.load すら来なければエラー
   window._submitTimeout = setTimeout(() => {
-    console.warn('[form] no response within 15s');
-    showError();
+    if (!window._resolved) {
+      window._resolved = true;
+      console.warn('[form] no response within 15s');
+      showError();
+    }
   }, 15000);
 }
 
@@ -2853,6 +2870,8 @@ window.addEventListener('message', (e) => {
   /* origin チェック: GAS ドメインのみ受け付ける */
   if (!e.origin.includes('script.google')) return;
   if (window._submitTimeout) { clearTimeout(window._submitTimeout); window._submitTimeout = null; }
+  if (window._resolved) return;
+  window._resolved = true;
   if (e.data === 'bni_success') showSuccess();
   if (e.data === 'bni_error')   showError();
 });
