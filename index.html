@@ -2282,10 +2282,10 @@ a { color: inherit; text-decoration: none; }
           </div>
 
           <div class="form-group">
-            <label class="form-label" for="referrer">紹介者 <span class="opt">任意</span></label>
+            <label class="form-label" for="referrer">紹介者 <span class="req">必須</span></label>
             <input class="form-input" type="text" id="referrer" name="referrer"
-                   placeholder="紹介してくださったBNIメンバーのお名前">
-            <span class="form-hint">BNIメンバーからご紹介の場合はお名前をご記入ください</span>
+                   placeholder="紹介してくださったBNIメンバーのお名前" required>
+            <span class="form-hint">紹介してくださったBNIメンバーのお名前をご記入ください</span>
           </div>
 
           <div class="form-divider"></div>
@@ -2432,7 +2432,7 @@ a { color: inherit; text-decoration: none; }
       <li>業種</li>
       <li>メールアドレス</li>
       <li>電話番号</li>
-      <li>紹介者名（任意）</li>
+      <li>紹介者名（必須）</li>
       <li>期待すること（任意）</li>
     </ul>
 
@@ -2900,7 +2900,7 @@ function showDuplicate() {
   if (window.turnstile) {
     try { window.turnstile.reset(); } catch(e) {}
   }
-  alert('このメールアドレスは既に受付済みです。\n\n二重申込みになっていませんか？\n登録内容の変更・お問い合わせは info@search-mania.net までご連絡ください。');
+  alert('このメールアドレスは既に受付済みです。\n\n二重申込みになっていませんか？\n登録内容の変更・お問い合わせは、ご紹介者までご連絡ください。');
 }
 
 

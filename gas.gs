@@ -98,7 +98,8 @@ const DISPOSABLE_DOMAINS = [
   'sharklasers.com','maildrop.cc','dispostable.com','getnada.com',
 ];
 const REQUIRED_FIELDS = ['name','nameKana','company','companyKana',
-                         'industry','email','phone','afterparty','authority','survey'];
+                         'industry','referrer','email','phone',
+                         'afterparty','authority','survey'];
 const MAX_FIELD_LEN = 200;
 const DUPLICATE_WINDOW_MIN = 2;    // 同メール2分以内の再送はブロック（テスト容易化）
 
@@ -262,7 +263,7 @@ function doPost(e) {
       String(p.company).trim(),
       String(p.companyKana).trim(),
       String(p.industry).trim(),
-      String(p.referrer || '').trim(),
+      String(p.referrer).trim(),
       String(p.email).trim(),
       String(p.phone).trim(),
       String(p.afterparty).trim(),
