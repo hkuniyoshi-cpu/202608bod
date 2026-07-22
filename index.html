@@ -2891,7 +2891,7 @@ function showError() {
   if (window.turnstile) {
     try { window.turnstile.reset(); } catch(e) {}
   }
-  alert('送信中にエラーが発生しました。入力内容をご確認のうえ、再度お試しください。');
+  alert('お申込みに失敗しました。\n\n入力内容をご確認のうえ、再度お試しください。\nエラーが解消しない場合は、ご紹介者までご連絡ください。');
 }
 
 function showDuplicate() {
@@ -2900,7 +2900,7 @@ function showDuplicate() {
   if (window.turnstile) {
     try { window.turnstile.reset(); } catch(e) {}
   }
-  alert('このメールアドレスは既に受付済みです。\n\n二重申込みになっていませんか？\n登録内容の変更・お問い合わせは、ご紹介者までご連絡ください。');
+  alert('既に同じ申込みがあります。\n\n同じメールアドレスでのお申込みを受付済みです。\n二重申込みになっていませんか？');
 }
 
 
