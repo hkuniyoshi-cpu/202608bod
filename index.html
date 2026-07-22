@@ -2872,8 +2872,9 @@ window.addEventListener('message', (e) => {
   if (window._submitTimeout) { clearTimeout(window._submitTimeout); window._submitTimeout = null; }
   if (window._resolved) return;
   window._resolved = true;
-  if (e.data === 'bni_success') showSuccess();
-  if (e.data === 'bni_error')   showError();
+  if (e.data === 'bni_success')   showSuccess();
+  if (e.data === 'bni_error')     showError();
+  if (e.data === 'bni_duplicate') showDuplicate();
 });
 
 function showSuccess() {
@@ -2891,6 +2892,15 @@ function showError() {
     try { window.turnstile.reset(); } catch(e) {}
   }
   alert('送信中にエラーが発生しました。入力内容をご確認のうえ、再度お試しください。');
+}
+
+function showDuplicate() {
+  const btn = document.getElementById('submit-btn');
+  if (btn) { btn.disabled = false; btn.textContent = '申込みを送信する'; }
+  if (window.turnstile) {
+    try { window.turnstile.reset(); } catch(e) {}
+  }
+  alert('このメールアドレスは既に受付済みです。\n\n二重申込みになっていませんか？\n登録内容の変更・お問い合わせは info@search-mania.net までご連絡ください。');
 }
 
 

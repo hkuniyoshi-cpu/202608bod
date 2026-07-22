@@ -240,12 +240,12 @@ function doPost(e) {
       sheet.setFrozenRows(1);
     }
 
-    // ─── ② 重複送信チェック（同メール10分以内） ─────
+    // ─── ② 重複送信チェック（同メール2分以内） ─────
     if (isDuplicate(sheet, String(p.email).trim())) {
       console.warn('[duplicate] blocked:', p.email);
-      // 表面上は成功として返す（Botに情報を渡さない）
+      // 重複を明示的にクライアントへ通知（ユーザー向けの注意メッセージ表示用）
       return HtmlService.createHtmlOutput(
-        '<script>window.parent.postMessage("bni_success","*");</script>'
+        '<script>window.parent.postMessage("bni_duplicate","*");</script>'
       );
     }
 
