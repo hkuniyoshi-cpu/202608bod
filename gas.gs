@@ -214,7 +214,7 @@ function doPost(e) {
       console.warn('[turnstile] blocked submission from:', p.email);
       // Botには「エラー」ではなく静かに拒否
       return HtmlService.createHtmlOutput(
-        '<script>window.parent.postMessage("bni_error","*");</script>'
+        '<script>window.top.postMessage("bni_error","*");</script>'
       );
     }
 
@@ -223,7 +223,7 @@ function doPost(e) {
     if (validationError) {
       console.warn('[validation]', validationError, p);
       return HtmlService.createHtmlOutput(
-        '<script>window.parent.postMessage("bni_error","*");</script>'
+        '<script>window.top.postMessage("bni_error","*");</script>'
       );
     }
 
@@ -249,7 +249,7 @@ function doPost(e) {
       console.warn('[duplicate] blocked:', p.email);
       // 重複を明示的にクライアントへ通知（ユーザー向けの注意メッセージ表示用）
       return HtmlService.createHtmlOutput(
-        '<script>window.parent.postMessage("bni_duplicate","*");</script>'
+        '<script>window.top.postMessage("bni_duplicate","*");</script>'
       );
     }
 
@@ -279,13 +279,13 @@ function doPost(e) {
 
     // 完了通知をiframeへ返す
     return HtmlService.createHtmlOutput(
-      '<script>window.parent.postMessage("bni_success","*");</script>'
+      '<script>window.top.postMessage("bni_success","*");</script>'
     );
 
   } catch (err) {
     console.error(err);
     return HtmlService.createHtmlOutput(
-      '<script>window.parent.postMessage("bni_error","*");</script>'
+      '<script>window.top.postMessage("bni_error","*");</script>'
     );
   }
 }
