@@ -134,7 +134,11 @@ function validate(p) {
     }
   }
   // 文字数チェック（過剰入力によるDoS防止）
+  // ※ cf-turnstile-response(Turnstileトークン) と _hp(ハニーポット) は
+  //   ユーザー入力値ではないので長さチェックの対象外
+  const SKIP_LEN_CHECK = ['cf-turnstile-response', '_hp'];
   for (const key of Object.keys(p)) {
+    if (SKIP_LEN_CHECK.indexOf(key) !== -1) continue;
     if (String(p[key]).length > MAX_FIELD_LEN) {
       return `入力値が長すぎます: ${key}`;
     }
